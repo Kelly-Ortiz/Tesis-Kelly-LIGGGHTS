@@ -1,0 +1,24 @@
+# vtk DataFile Version 3.0
+LIGGGHTS particles timestep 0
+ASCII
+DATASET POLYDATA
+POINTS 0 float
+
+VERTICES 0 0
+
+POINT_DATA 0
+SCALARS id int 1
+LOOKUP_TABLE default
+
+SCALARS type int 1
+LOOKUP_TABLE default
+
+SCALARS radius float 1
+LOOKUP_TABLE default
+
+SCALARS mass float 1
+LOOKUP_TABLE default
+
+VECTORS velocity float
+
+VECTORS force float

@@ -1,0 +1,765 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-05-19-03:04:00 by root, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+##################################Header for General commands#######################################################
+
+atom_style	granular		#Simulation of particles
+
+boundary	f f f			#fixed boundaries -> particles will be deleted if leaving the simulation box
+
+units		si
+
+communicate	multi vel yes		#default
+
+newton		off			#default
+
+
+###################################System variables##################################################################
+
+#Definition of boundaries
+
+variable xmin equal -0.02
+variable xmax equal 0.43
+
+variable ymin equal -0.02
+variable ymax equal 0.06
+
+variable zmin equal -0.02
+variable zmax equal 0.07
+
+#Definition of the timestep
+
+variable dt equal 1e-5
+
+
+###################################Specific variables for current simulation#########################################
+
+variable natoms equal 2 				#1 -> particle #2 ->pipe and screw
+
+
+####variable for material properties####
+
+####Young Modulus####
+variable	youngmodulus1	equal 	7e6
+variable	youngmodulus2	equal 	2e8
+
+####Poission ratio####
+variable 	poission1	equal	0.30
+variable 	poission2	equal	0.29
+
+
+####variable for contact properties####
+
+####coefficient of restitution####
+variable	CoR11	equal	0.6
+variable	CoR12	equal	0.8
+variable	CoR21	equal	0.8
+variable	CoR22	equal	0.45
+
+####sliding friction coefficient####
+variable	sf11	equal	0.65	#Particle-particle sliding friction coefficient
+variable	sf12	equal	0.5
+variable	sf21	equal	0.5
+variable	sf22	equal	0.0
+
+####rolling friction coefficient####
+variable	rf11	equal	0.75	#Particle-particle rolling friction coefficient
+variable	rf12	equal	0.4
+variable	rf21	equal	0.4
+variable	rf22	equal	0.0
+
+
+####variable for particle####
+
+#Number of particle radius
+variable	nradii	equal	3
+
+variable	radius1	equal	0.0005	#m
+variable	radius2	equal	0.0005	#m
+variable	radius3	equal	0.0005	#m
+
+variable	frac1	equal	0.3945
+variable	frac2	equal	0.4059
+variable	frac3	equal	0.1996
+
+variable	density	equal	1000		#kg/m³
+
+
+####filling parameters####
+
+variable	filltime	equal	0.2		#s, prueba rápida: alimentar 2 s
+
+variable	dischargetime	equal	5		#s, tiempo para que puedan salir partículas
+
+variable	fillmass	equal	0.0001 		#kg, 2 g de material
+
+variable	fillmassrate	equal	${fillmass}/${filltime}	#kg/s
+variable	fillmassrate	equal	0.0001/${filltime}	
+variable	fillmassrate	equal	0.0001/0.2	
+
+variable	fillsteps	equal	${filltime}/${dt}
+variable	fillsteps	equal	0.2/${dt}
+variable	fillsteps	equal	0.2/1e-05
+
+variable	dischargesteps	equal	${dischargetime}/${dt}
+variable	dischargesteps	equal	5/${dt}
+variable	dischargesteps	equal	5/1e-05
+
+
+####screw velocities####
+
+variable	screwPeriod	equal	0.5		#s, prueba rápida: 2 vueltas/s
+
+
+###################################Definition of simulationbox#######################################################
+
+region		reg block ${xmin} ${xmax} ${ymin} ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 ${xmax} ${ymin} ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 ${ymin} ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 -0.02 ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 -0.02 0.06 ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 -0.02 0.06 -0.02 ${zmax} units box
+region		reg block -0.02 0.43 -0.02 0.06 -0.02 0.07 units box
+
+create_box	2 reg
+Created orthogonal box = (-0.02 -0.02 -0.02) to (0.43 0.06 0.07)
+  6 by 2 by 2 MPI processor grid
+
+neighbor	0.005 bin
+
+neigh_modify	delay 0
+
+
+#################################Definition of the contact models####################################################
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+pair_coeff	* *
+
+timestep ${dt}
+timestep 1e-05
+
+thermo 1000
+
+fix		integrator all nve/sphere
+
+fix		gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+
+###################################Definition of Material properties#################################################
+
+fix 		m1 all property/global youngsModulus peratomtype ${youngmodulus1} ${youngmodulus2}
+fix 		m1 all property/global youngsModulus peratomtype 7000000 ${youngmodulus2}
+fix 		m1 all property/global youngsModulus peratomtype 7000000 200000000
+
+fix 		m2 all property/global poissonsRatio peratomtype ${poission1} ${poission2}
+fix 		m2 all property/global poissonsRatio peratomtype 0.3 ${poission2}
+fix 		m2 all property/global poissonsRatio peratomtype 0.3 0.29
+
+fix 		m3 all property/global coefficientRestitution peratomtypepair ${natoms} ${CoR11} ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 ${CoR11} ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.8 ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.8 0.8 ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.8 0.8 0.45
+
+fix 		m4 all property/global coefficientFriction peratomtypepair ${natoms} ${sf11} ${sf12} ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 ${sf11} ${sf12} ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 ${sf12} ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.5 ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.5 0.5 ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.5 0.5 0
+
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair ${natoms} ${rf11} ${rf12} ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 ${rf11} ${rf12} ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 ${rf12} ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.4 ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.4 0.4 ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.4 0.4 0
+
+
+###################################Generation and Loading of the Geometry .stl#######################################
+
+fix case all mesh/surface file case_remesh.stl type 2 heal auto_remove_duplicates scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+fix screw all mesh/surface file screw_simplified.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+fix 		walls 		all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 2 meshes case screw
+WARNING: 
+	The contact model you specified is not located in any whitelist.
+	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
+	In order to optimize this model you have the following options:
+		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
+		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
+		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
+	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
+
+ (../contact_models.h:365)
+
+fix		Movescrew	all move/mesh mesh screw rotate origin 0.2024435 0.019051 0.011497 axis -1. 0. 0. period ${screwPeriod}
+fix		Movescrew	all move/mesh mesh screw rotate origin 0.2024435 0.019051 0.011497 axis -1. 0. 0. period 0.5
+
+fix feed all mesh/surface file feed.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+fix outlet all mesh/surface file outlet_1.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+
+###################################Generation and Insertion of the particles#########################################
+
+fix pts1 all particletemplate/sphere 10487 atom_type 1 density constant ${density} radius constant ${radius1} volume_limit 1e-18
+fix pts1 all particletemplate/sphere 10487 atom_type 1 density constant 1000 radius constant ${radius1} volume_limit 1e-18
+fix pts1 all particletemplate/sphere 10487 atom_type 1 density constant 1000 radius constant 0.0005 volume_limit 1e-18
+
+fix pts2 all particletemplate/sphere 11887 atom_type 1 density constant ${density} radius constant ${radius2} volume_limit 1e-18
+fix pts2 all particletemplate/sphere 11887 atom_type 1 density constant 1000 radius constant ${radius2} volume_limit 1e-18
+fix pts2 all particletemplate/sphere 11887 atom_type 1 density constant 1000 radius constant 0.0005 volume_limit 1e-18
+
+fix pts3 all particletemplate/sphere 16561 atom_type 1 density constant ${density} radius constant ${radius3} volume_limit 1e-18
+fix pts3 all particletemplate/sphere 16561 atom_type 1 density constant 1000 radius constant ${radius3} volume_limit 1e-18
+fix pts3 all particletemplate/sphere 16561 atom_type 1 density constant 1000 radius constant 0.0005 volume_limit 1e-18
+
+fix 		pdd1 all particledistribution/discrete 32452867 ${nradii} pts1 ${frac1} pts2 ${frac2} pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 ${frac1} pts2 ${frac2} pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 0.3945 pts2 ${frac2} pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 0.3945 pts2 0.4059 pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 0.3945 pts2 0.4059 pts3 0.1996
+
+fix		ins_mesh all mesh/surface/planar file feed.stl type 1 scale 1.0
+
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass ${fillmass} massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.10         	insertion_face ins_mesh extrude_length 0.015
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 0.0001 massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.10         	insertion_face ins_mesh extrude_length 0.015
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 0.0001 massrate 0.0005 overlapcheck yes all_in yes vel constant 0 0 -0.10         	insertion_face ins_mesh extrude_length 0.015
+
+
+################################### Particle Residence Time Track#########################################
+
+fix 	rt_outlet	all massflow/mesh mesh outlet vec_side 0 0 -1 file rt_outlet.txt writeTime
+
+fix 	rt_inlet	all massflow/mesh mesh feed vec_side 0 0 -1 file rt_inlet.txt writeTime
+
+
+###################################Outlet mass flow track#########################################
+
+fix	mfout	all massflow/mesh mesh outlet vec_side 0 0 -1
+
+fix	mfin	all massflow/mesh mesh feed vec_side 0 0 -1
+
+variable 	time equal step*dt
+
+variable 	in_mass_flow equal	f_mfin[3]
+
+variable 	out_mass_flow equal	f_mfout[3]
+
+fix mass_flow_rate all print 5000 "${time},${in_mass_flow},${out_mass_flow}" screen no title "t,in_mass_flow,out_mass_flow" file massflow.csv
+
+
+###################################Dumping of the data for post-processing to visualize############################
+
+#fix ts_check all check/timestep/gran 1000 0.1 0.1
+
+shell 	mkdir -p post
+
+variable dumptime equal 0.2		#guarda cada 0.05 s
+
+variable dumpstep equal ${dumptime}/${dt}
+variable dumpstep equal 0.2/${dt}
+variable dumpstep equal 0.2/1e-05
+
+dump	dmpparticle all custom ${dumpstep} post/particles_*.liggghts id type x y z vx vy vz fx fy fz radius mass
+dump	dmpparticle all custom 20000 post/particles_*.liggghts id type x y z vx vy vz fx fy fz radius mass
+
+dump_modify	dmpparticle sort id
+
+dump	dmpscrew	all	mesh/stl ${dumpstep} post/screw_*.stl screw
+dump	dmpscrew	all	mesh/stl 20000 post/screw_*.stl screw
+
+
+####################################RUN the simulation filling and discharge###########################################################
+
+run	${fillsteps}
+run	20000
+Setting up run at Thu May 28 22:20:13 2026
+
+WARNING: Fix mesh: Mesh contains highly skewed element, moving mesh (if used) will not parallelize well (../surface_mesh_I.h:657)
+WARNING: Fix mesh: Mesh contains highly skewed element, moving mesh (if used) will not parallelize well (../surface_mesh_I.h:657)
+INFO: Particle insertion ins: 143.239449 particles every 15000 steps - particle rate 954.929659, (mass rate 5.000000e-04)
+      190 particles (mass 9.948377e-05) within 15000 steps
+Memory usage per processor = 11.8767 Mbytes
+    Step    Atoms         KinEng            CPU 
+       0        0              0              0 
+INFO: Particle insertion ins: inserted 143 particle templates (mass 7.487462e-05) at step 1
+ - a total of 143 particle templates (mass 7.487462e-05) inserted so far.
+    1000      143  3.8118962e-07      3.1539056 
+    2000      143  4.3507258e-07      6.5715917 
+    3000      143  4.6501137e-07      10.813005 
+    4000      143  4.6948091e-07      15.525522 
+    5000      143  4.9460027e-07      20.993877 
+    6000      143  5.1088272e-07        26.1772 
+    7000      143  4.0797317e-07      31.468638 
+    8000      143  3.6120865e-07      36.596927 
+    9000      143  3.8234301e-07      42.562436 
+   10000      143  3.6501256e-07       48.46645 
+   11000      143  2.6174595e-07      53.802133 
+   12000      143  2.5072748e-07      60.627082 
+   13000      143  2.5130851e-07      67.259084 
+   14000      143  2.4456232e-07      75.371057 
+   15000      143  2.2825664e-07      84.134022 
+INFO: Particle insertion ins: inserted 47 particle templates (mass 2.460914e-05) at step 15001
+ - a total of 190 particle templates (mass 9.948377e-05) inserted so far.
+   16000      190  3.0311578e-07      92.546469 
+   17000      190   2.584874e-07      102.53125 
+   18000      190  2.9520283e-07      112.98643 
+   19000      190   2.277813e-07      121.92442 
+   20000      190  1.9260999e-07      133.48079 
+Loop time of 133.481 on 24 procs for 20000 steps with 190 atoms, finish time Thu May 28 22:22:31 2026
+
+
+Pair  time (%) = 0.277719 (0.208059)
+Neigh time (%) = 0.000697898 (0.000522845)
+Comm  time (%) = 0.374228 (0.280361)
+Outpt time (%) = 3.93452 (2.94763)
+Other time (%) = 128.894 (96.5634)
+
+Nlocal:    7.91667 ave 103 max 0 min
+Histogram: 22 0 0 0 0 0 0 1 0 1
+Nghost:    10.0417 ave 114 max 0 min
+Histogram: 20 1 1 0 0 0 0 1 0 1
+Neighs:    361.292 ave 5393 max 0 min
+Histogram: 22 0 0 0 0 1 0 0 0 1
+
+Total # of neighbors = 8671
+Ave neighs/atom = 45.6368
+Neighbor list builds = 18
+Dangerous builds = 0
+
+unfix	ins
+
+run	${dischargesteps}
+run	500000
+Setting up run at Thu May 28 22:22:31 2026
+
+Memory usage per processor = 20.228 Mbytes
+    Step    Atoms         KinEng            CPU 
+   20000      190  1.9260999e-07              0 
+   21000      190  6.9351413e-07      9.9828077 
+   22000      190  1.8358379e-06      17.835738 
+   23000      190   1.687306e-06      27.422261 
+   24000      190  1.0779186e-06      37.570715 
+   25000      190  8.2198372e-07      47.286133 
+   26000      189  2.2060474e-07      57.101948 
+   27000      189  1.5856632e-07      66.837826 
+   28000      189  1.3121592e-07      75.004111 
+   29000      189  8.8231072e-08      83.782915 
+   30000      189  1.6183636e-06      91.781117 
+   31000      189   8.938906e-07      101.04371 
+   32000      189   6.106884e-07      113.87513 
+   33000      189  4.2222701e-07      126.80486 
+   34000      189    2.14927e-06      139.55122 
+   35000      189  2.0284445e-06       152.4921 
+   36000      188  2.9513674e-07      165.25541 
+   37000      188  3.5724844e-07      175.38483 
+   38000      188  5.3406601e-07      185.78281 
+   39000      188  4.7332288e-07       196.2005 
+   40000      188  4.4567003e-07      209.95162 
+   41000      188  4.8300483e-07        219.857 
+   42000      188  7.8562552e-07      230.24267 
+   43000      188  7.9350845e-07      240.92303 
+   44000      187  3.7019505e-07      251.95392 
+   45000      187   3.320224e-07      261.61828 
+   46000      186  2.7533021e-07      271.99851 
+   47000      186  3.9125636e-07      280.88507 
+   48000      186    3.50321e-07      290.18481 
+   49000      186  3.5953977e-07      301.55354 
+   50000      186  4.4205122e-07      314.96682 
+   51000      186  4.7721282e-07      327.54634 
+   52000      185  1.9755722e-07      341.05325 
+   53000      185  1.6434863e-07      353.03095 
+   54000      185  1.9857737e-07      361.81583 
+   55000      185   4.192976e-07      373.03073 
+   56000      185    2.01687e-07      385.95634 
+   57000      185  2.1257689e-07        398.719 
+   58000      185  1.9527397e-07      407.63389 
+   59000      185  2.2510436e-07      418.43564 
+   60000      185  2.0519925e-07      433.18673 
+   61000      185  2.2748961e-06      442.82502 
+   62000      184  3.6239199e-06      453.79741 
+   63000      184  2.7928576e-06      462.75737 
+   64000      183  1.5821294e-06      471.61421 
+   65000      182  7.5874548e-07      481.40818 
+   66000      182  6.4439797e-07      490.68218 
+   67000      182  5.6704039e-07      499.89961 
+   68000      181  4.7178814e-07        509.123 
+   69000      181  5.7070803e-07      517.92602 
+   70000      181  5.5829397e-07      528.39182 
+   71000      181  3.3027164e-07       538.0151 
+   72000      181   3.780858e-07      549.42324 
+   73000      181  3.2031278e-07      559.82057 
+   74000      181  3.1229515e-07      569.45037 
+   75000      181  1.8016371e-07      577.97496 
+   76000      181  4.6918977e-07      586.55604 
+   77000      181  5.7762865e-07      595.42759 
+   78000      181  1.5969741e-06      606.66733 
+   79000      181  2.9549753e-07      617.63601 
+   80000      181  8.6030842e-07      629.19523 
+   81000      181  3.8468414e-07      638.24542 
+   82000      181  4.1833428e-07      649.36499 
+   83000      181  4.7582937e-07      658.81976 
+   84000      180  1.5987921e-07      668.81548 
+   85000      180  3.2456429e-06      679.29434 
+   86000      180  1.5324949e-06      688.33128 
+   87000      180  1.6102479e-07      696.85088 
+   88000      180  2.1748773e-07      709.55903 
+   89000      180  2.1694677e-07      719.43512 
+   90000      180  2.1150561e-07      728.72398 
+   91000      180   2.314185e-07      738.17089 
+   92000      180  2.5595811e-07      750.16609 
+   93000      180  2.2637702e-07      758.32506 
+   94000      180  1.3729928e-07      767.89171 
+   95000      180  1.1131906e-07      776.37713 
+   96000      180  2.1914314e-07      785.32471 
+   97000      180  1.1109709e-07      797.90131 
+   98000      180   1.170927e-07      809.53441 
+   99000      180   9.439853e-08      819.96529 
+  100000      180  1.1354635e-07      832.73237 
+  101000      180  7.8527606e-08      844.23844 
+  102000      180  9.0152886e-08      856.39787 
+  103000      180  4.0930135e-08      865.98226 
+  104000      180  4.2738571e-08      877.55063 
+  105000      180  7.7942816e-08      888.54204 
+  106000      180   5.278299e-08       899.4188 
+  107000      180  1.5462653e-07      909.25319 
+  108000      180  2.0059858e-07      919.37088 
+  109000      180    3.01378e-07      928.62224 
+  110000      180  2.5677608e-07       936.8009 
+  111000      180  3.6658114e-07      945.45098 
+  112000      180   1.226325e-05      955.34349 
+  113000      180  8.9435094e-06      963.17981 
+  114000      179  4.5495811e-06      972.14969 
+  115000      178  2.8137948e-06      980.26534 
+  116000      178  8.1243476e-06      988.47311 
+  117000      178  7.2100123e-06      995.38682 
+  118000      173  1.4920381e-06       1002.637 
+  119000      173  2.1621734e-06      1010.5806 
+  120000      173  1.1738492e-06      1020.3971 
+  121000      173   1.168688e-06      1028.7692 
+  122000      172  8.7262356e-07      1036.6212 
+  123000      172  9.7196015e-07      1045.1798 
+  124000      172  9.3420705e-07      1053.5136 
+  125000      171  1.1579208e-06      1061.9806 
+  126000      170    1.06329e-06      1070.5826 
+  127000      169  8.5531469e-07      1081.1809 
+  128000      169  9.6503455e-06      1090.2925 
+  129000      169  3.3618119e-06      1100.0925 
+  130000      169  2.8830935e-06      1109.1874 
+  131000      168  2.2709012e-06      1118.4167 
+  132000      166  9.9122398e-07       1127.785 
+  133000      165  6.4748037e-07      1136.0894 
+  134000      165  7.1602851e-07      1146.3712 
+  135000      164  1.4207563e-07       1157.844 
+  136000      164  1.8827712e-06      1167.1696 
+  137000      164  4.8565487e-06      1177.8932 
+  138000      164   3.143532e-06      1188.8755 
+  139000      163  9.2411611e-07      1200.3206 
+  140000      163  5.9456824e-07      1212.4787 
+  141000      163  5.8851143e-07      1223.1559 
+  142000      163  6.0435964e-07      1232.9313 
+  143000      162  4.0411983e-07      1244.3586 
+  144000      162  4.0897088e-07      1255.0211 
+  145000      162  3.5701973e-07      1270.4984 
+  146000      162  4.8802439e-07      1294.7197 
+  147000      162  5.5467825e-07      1323.5009 
+  148000      162  1.0475177e-06      1352.7302 
+  149000      162  6.6606947e-07      1379.5538 
+  150000      162  5.7619838e-07      1407.9216 
+  151000      162  7.5757969e-07      1438.3184 
+  152000      161   2.676987e-07      1467.7612 
+  153000      161  1.8807577e-07      1493.9851 
+  154000      161  1.5220555e-07      1523.5204 
+  155000      161  6.1600673e-06      1551.5052 
+  156000      160  1.7913591e-07      1582.5067 
+  157000      160   5.169553e-07      1611.9671 
+  158000      160  4.8665093e-07      1641.1253 
+  159000      160  2.8359906e-07      1670.1152 
+  160000      160  2.0200669e-07       1704.126 
+  161000      160  1.5314271e-07      1731.1097 
+  162000      160  4.7161917e-05      1760.7345 
+  163000      157  1.7872803e-05      1790.2216 
+  164000      153  1.2305108e-05      1818.0878 
+  165000      152  7.0105189e-06       1844.518 
+  166000      150  3.1930106e-06      1872.6126 
+  167000      145  1.7186971e-06      1899.6404 
+  168000      144  1.2680804e-06      1927.8634 
+  169000      142  9.7087734e-07      1956.2347 
+  170000      142  9.3184341e-07      1985.3512 
+  171000      141   8.167668e-07      2014.1497 
+  172000      141  8.3649447e-07      2041.9022 
+  173000      139  8.8293586e-07      2067.9407 
+  174000      139  9.6274243e-07      2092.4598 
+  175000      138  1.0072687e-06      2114.0007 
+  176000      137  1.1856521e-06       2134.969 
+  177000      137  1.6359669e-06      2156.1305 
+  178000      135  1.2821036e-05      2179.7782 
+  179000      134  5.6179769e-06       2202.658 
+  180000      133  6.8225393e-06      2228.6328 
+  181000      130  2.9154068e-06      2248.3908 
+  182000      129  2.0588776e-06      2268.9215 
+  183000      128   1.705155e-06      2287.2032 
+  184000      127  1.3419865e-06      2306.6318 
+  185000      125  1.3751215e-06      2325.5439 
+  186000      124  3.8039966e-07      2343.6659 
+  187000      124  4.3457316e-07      2364.1606 
+  188000      124  3.6482779e-07       2384.097 
+  189000      123  3.0881677e-07      2411.5297 
+  190000      123  3.0957794e-06      2432.6017 
+  191000      121  4.3117376e-07      2452.2396 
+  192000      120  2.1063781e-07        2471.08 
+  193000      120  1.6686128e-07      2497.1263 
+  194000      120  1.5258785e-07      2518.0224 
+  195000      120  1.4142326e-07      2538.0216 
+  196000      120  2.1276512e-06      2558.1251 
+  197000      120   1.970443e-06      2577.0852 
+  198000      119  1.5012019e-07      2597.7045 
+  199000      119  1.3771415e-07      2617.1842 
+  200000      119  2.8306188e-07      2641.4618 
+  201000      119  2.0125503e-07      2661.3494 
+  202000      119  2.6740985e-06      2682.4407 
+  203000      119  2.3556278e-06      2703.4583 
+  204000      118  3.9896051e-07      2724.1512 
+  205000      118  2.3810363e-07      2743.4515 
+  206000      118  1.7046056e-07      2763.4285 
+  207000      118  1.9473944e-07      2782.3848 
+  208000      118   2.735378e-07      2801.1687 
+  209000      118  1.7697666e-07      2822.1021 
+  210000      118  5.6891401e-07      2841.5056 
+  211000      118  2.2794409e-07      2861.3898 
+  212000      118  1.5522948e-07      2879.9674 
+  213000      118  9.5511728e-07      2900.4523 
+  214000      118  7.9543012e-07      2920.5254 
+  215000      118  6.5128553e-07      2941.1453 
+  216000      118  6.2608351e-07       2960.376 
+  217000      118  5.7217449e-07      2978.6144 
+  218000      117  2.3902455e-07      2997.7276 
+  219000      117  2.8178233e-07      3016.2699 
+  220000      117  4.3857101e-07      3042.1833 
+  221000      117  3.7539764e-07       3061.681 
+  222000      117  2.9155582e-07      3081.7905 
+  223000      117  2.6193657e-07      3105.0325 
+  224000      117  2.0141062e-07      3129.7256 
+  225000      117  2.2748418e-07      3155.9642 
+  226000      117  1.9455407e-07      3180.3348 
+  227000      117  5.4016244e-07      3207.3923 
+  228000      117  0.00069508768      3234.4712 
+  229000      117  2.0166972e-06       3255.234 
+  230000      117    3.99977e-06       3276.084 
+  231000      117  3.4591731e-06      3295.4004 
+  232000      116  6.4956506e-07      3315.6258 
+  233000      116  4.1566062e-07      3335.3234 
+  234000      115  2.2614576e-07      3354.4254 
+  235000      115  4.2459934e-07      3376.8429 
+  236000      115  1.8047725e-07      3397.8201 
+  237000      113  6.1366094e-08      3418.1389 
+  238000      113   6.758763e-08      3437.6671 
+  239000      113  8.4692757e-08      3456.9733 
+  240000      113  1.4536477e-05      3482.6269 
+  241000      112  7.6140507e-08      3502.1737 
+  242000      112  8.9006217e-08      3521.5898 
+  243000      112  9.0045039e-08      3540.8473 
+  244000      112  3.1654427e-07      3560.4537 
+  245000      112   1.681224e-07      3581.4685 
+  246000      112  1.4193465e-07      3600.7081 
+  247000      112  4.5690999e-07      3618.9209 
+  248000      112  3.3130712e-07      3639.5507 
+  249000      112  2.5736615e-07      3659.2009 
+  250000      112  2.6471617e-07      3677.4973 
+  251000      112  3.0289257e-07      3696.5543 
+  252000      112  3.8752513e-07      3716.9281 
+  253000      112  1.3128713e-07      3737.9579 
+  254000      112  1.3569195e-07      3756.9094 
+  255000      112  2.2441572e-07      3776.1874 
+  256000      112  1.4406103e-07      3796.1156 
+  257000      112  1.0708302e-07       3816.224 
+  258000      112  1.0631193e-07      3833.6455 
+  259000      112  7.8933521e-08      3852.7768 
+  260000      112  1.0396139e-07      3876.3261 
+  261000      112  1.4008969e-07      3892.3038 
+  262000      112  1.0892194e-06      3911.5898 
+  263000      112  9.2821344e-07      3930.5818 
+  264000      111  3.9325717e-07      3948.8996 
+  265000      111  3.0946077e-07      3968.5418 
+  266000      111  2.4410196e-07      3985.3485 
+  267000      111  4.6504314e-07      4001.2068 
+  268000      111  2.0466074e-07      4016.2965 
+  269000      111  3.6766616e-06      4030.7116 
+  270000      111  1.6650863e-07      4045.6138 
+  271000      111  1.9880659e-06      4061.3428 
+  272000      111  1.0783283e-06      4076.9543 
+  273000      111  9.1104035e-07      4092.1664 
+  274000      111  3.6893495e-06      4106.1876 
+  275000      111  5.5162363e-07      4119.2292 
+  276000      111  4.1314657e-07      4133.2612 
+  277000      111  8.1835662e-07      4146.9524 
+  278000      111  2.1165507e-06      4160.8018 
+  279000      110  1.5937246e-06      4175.5336 
+  280000      109  2.6488987e-06      4193.8351 
+  281000      108  4.3570211e-07      4208.1809 
+  282000      108  3.6610093e-07      4222.8129 
+  283000      108  2.3966095e-07      4237.1692 
+  284000      107  3.0763959e-07      4252.6643 
+  285000      107  3.3605654e-07      4265.8946 
+  286000      107   6.641639e-07       4280.038 
+  287000      107  2.6658757e-07       4294.459 
+  288000      107  1.4176245e-07      4309.2597 
+  289000      107  1.7660205e-07      4323.3137 
+  290000      107  2.1150725e-07      4337.8287 
+  291000      107     4.9793e-07      4352.1834 
+  292000      107   2.408133e-07      4365.3527 
+  293000      107   2.007392e-07      4379.1665 
+  294000      107  1.5393653e-07       4393.601 
+  295000      107  2.2334757e-07      4407.6869 
+  296000      107  1.5259515e-07      4422.5631 
+  297000      107  1.4450985e-07      4435.1473 
+  298000      107  1.3932437e-07      4450.0008 
+  299000      107  5.6918805e-08      4464.8785 
+  300000      107   8.272601e-08      4484.5581 
+  301000      107  3.0891245e-07      4498.9282 
+  302000      107  1.2297187e-07      4512.6091 
+  303000      107  5.9047362e-08      4527.1348 
+  304000      107  7.5435221e-08      4541.1287 
+  305000      107  3.1320658e-07      4555.5929 
+  306000      107  2.1082452e-07      4569.2138 
+  307000      107  1.2096091e-07       4583.078 
+  308000      107  1.5335877e-07      4596.3811 
+  309000      107  1.6233909e-07      4610.3832 
+  310000      107  3.5682909e-07      4625.1161 
+  311000      107  2.8107259e-07      4638.7034 
+  312000      107  2.9976264e-06      4652.2092 
+  313000      107  2.3301047e-07      4665.2205 
+  314000      107   2.122452e-07      4678.5436 
+  315000      107  1.6433026e-07      4691.7747 
+  316000      107  4.1203532e-07      4706.0097 
+  317000      107  4.4928298e-07      4719.2565 
+  318000      107  2.2262301e-07      4732.7971 
+  319000      107  1.5298712e-07      4745.9276 
+  320000      107  6.9903108e-07      4764.7152 
+  321000      107  3.5525074e-07      4779.4385 
+  322000      107  3.9556597e-07      4792.0766 
+  323000      107  2.8810979e-07      4806.5067 
+  324000      107  2.4081114e-07       4820.444 
+  325000      107  3.1453039e-07      4833.8743 
+  326000      107  1.9480403e-07      4848.6067 
+  327000      107  6.6901169e-07      4861.9201 
+  328000      107  8.4756014e-06       4876.769 
+  329000      106  2.0628236e-06      4890.4298 
+  330000      106  8.0646638e-07      4904.2407 
+  331000      106  3.0494971e-07      4917.0671 
+  332000      106    5.01939e-07      4930.9533 
+  333000      106  5.8288072e-07      4944.5043 
+  334000      106  4.4638393e-07      4957.7324 
+  335000      106  4.3690196e-07      4970.0603 
+  336000      106   1.108732e-06      4983.4483 
+  337000      106  1.0789797e-06      4996.6508 
+  338000      105  8.1801455e-07      5010.6262 
+  339000      105  4.0456585e-07      5024.2351 
+  340000      105  2.1276512e-05      5042.9319 
+  341000      105  3.6050604e-07      5057.0883 
+  342000      105  4.1596963e-05      5070.8904 
+  343000      105  7.6694358e-06      5084.0706 
+  344000      105  1.5081516e-06      5097.3076 
+  345000      104  6.0004612e-07      5112.8621 
+  346000      104  5.7509289e-07      5126.2466 
+  347000      103  4.3103505e-07      5140.8264 
+  348000      103    3.24976e-07      5155.2313 
+  349000      103  3.4009662e-07      5169.4132 
+  350000      103  3.3272529e-07      5182.9324 
+  351000      103   2.748341e-07      5196.4946 
+  352000      103  2.5863713e-07      5209.7781 
+  353000      103  3.5636156e-07      5223.4974 
+  354000      103  3.3062849e-07      5237.5183 
+  355000      102  5.2589149e-06      5252.2248 
+  356000      102  3.0918778e-06      5267.0389 
+  357000      101  2.1608581e-07      5281.5315 
+  358000      101  2.4263127e-07      5293.9864 
+  359000      101   2.445192e-07      5306.5526 
+  360000      101  2.6530136e-07      5325.6791 
+  361000      101  1.1977764e-07      5339.4204 
+  362000      101  1.9718756e-07      5354.3488 
+  363000      101  5.7901129e-08      5368.6548 
+  364000      101  4.8535913e-08      5382.8929 
+  365000      101  2.3040638e-07       5396.849 
+  366000      101  1.2056622e-07      5410.2196 
+  367000      101  8.4988486e-08      5424.5201 
+  368000      101  1.1521052e-07      5438.8417 
+  369000      101  1.4662629e-07      5453.7315 
+  370000      101  1.7465897e-06      5467.8249 
+  371000      101  6.3812664e-07      5481.3858 
+  372000      101  4.9698758e-07      5494.6404 
+  373000      101  5.0907108e-07      5508.4377 
+  374000      101  3.0068191e-07      5522.6871 
+  375000      101  2.1545907e-07      5535.8094 
+  376000      101  2.6625573e-07      5549.2136 
+  377000      101  1.9417399e-07      5563.3671 
+  378000      101  2.0984672e-07       5580.715 
+  379000      101  2.0799649e-07      5594.9259 
+  380000      101    4.63132e-06      5614.4357 
+  381000      101  3.0964523e-07      5629.3456 
+  382000      100  4.9505916e-07      5645.8728 
+  383000      100  3.0415087e-07      5659.4727 
+  384000      100  2.3383156e-07      5673.4578 
+  385000      100  2.5488563e-07      5687.2242 
+  386000      100  2.9857424e-07      5701.8326 
+  387000      100  3.7625793e-07      5716.3613 
+  388000       99   9.112994e-08      5730.3161 
+  389000       99  1.0151116e-07      5744.4994 
+  390000       99  7.0954917e-08      5758.5889 
+  391000       99  6.9032898e-08      5772.8151 
+  392000       99  1.7647805e-06      5786.9639 
+  393000       99  1.6514634e-06       5800.698 
+  394000       98  5.9029316e-08      5815.1809 
+  395000       98  6.8021327e-08      5829.5288 
+  396000       98  4.7344007e-08      5844.0141 
+  397000       98   2.596085e-08       5858.964 
+  398000       98  2.1214457e-08      5872.3955 
+  399000       98  2.8374357e-08      5886.4776 
+  400000       98  1.1679761e-06       5904.971 
+  401000       98  3.8275345e-07      5918.8347 
+  402000       98  3.2885237e-07      5932.3394 
+  403000       98  2.5630752e-07      5945.0576 
+  404000       98  1.8991661e-07      5957.7443 
+  405000       98  2.6828757e-07      5971.6093 
+  406000       98  3.2977456e-07      5984.4505 
+  407000       98  2.4464338e-07      5997.6833 
+  408000       98  2.1292002e-07      6011.1843 
+  409000       98  6.5757698e-06      6024.2224 
+  410000       96  9.0202738e-07      6037.8303 
+  411000       96  7.1755117e-07      6051.6743 
+  412000       95  1.4202889e-07      6068.5057 
+  413000       95  1.5888169e-07      6083.0658 
+  414000       95  1.9987832e-07      6096.9671 
+  415000       95  1.1721611e-07      6109.8455 
+  416000       95  3.1297512e-07      6124.1383 
+  417000       95   1.758279e-07      6139.7841 
+  418000       95  7.8162213e-08       6153.185 
+  419000       95   1.107473e-07      6166.7899 
+  420000       95  1.4183409e-07      6185.1849 
+  421000       95  1.0482812e-07      6199.9744 
+  422000       95  8.5372024e-08      6214.3121 
+  423000       95   7.464884e-08      6228.0022 
+  424000       95  4.0092734e-07      6240.1359 
+  425000       95  9.1570358e-07      6254.1166 
+  426000       95  1.0082886e-07      6267.8535 
+  427000       95  4.1071415e-06      6281.3199 
+  428000       94  7.1630951e-06      6296.5052 
+  429000       94  6.8992762e-06      6310.9768 
+  430000       93  4.2630742e-06      6325.8023 
+  431000       92  3.5256936e-06      6341.0638 
+  432000       91  4.0285697e-07      6357.5804 
+  433000       91  3.2340046e-07      6374.6765 
+  434000     
