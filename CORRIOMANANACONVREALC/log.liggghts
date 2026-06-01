@@ -1,0 +1,1364 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-05-30-04:17:57 by root, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+###################################Header for General commands#######################################################
+
+atom_style	granular		#Simulation of particles
+
+boundary	f f f			#fixed boundaries -> particles will be deleted if leaving the simulation box
+
+units		si
+
+communicate	multi vel yes		#default
+
+newton		off			#default
+
+
+###################################System variables##################################################################
+
+#Definition of boundaries
+
+variable xmin equal -0.02
+variable xmax equal 0.43
+
+variable ymin equal -0.02
+variable ymax equal 0.06
+
+variable zmin equal -0.02
+variable zmax equal 0.07
+
+#Definition of the timestep
+
+variable dt equal 1e-6
+
+
+
+###################################Specific variables for current simulation#########################################
+
+variable natoms equal 2 				#1 -> particle #2 ->pipe and screw
+
+####variable for material properties####
+
+####Young Modulus####
+variable	youngmodulus1	equal 	7e6
+variable	youngmodulus2	equal 	2e8
+
+####Poission ratio####
+variable 	poission1	equal	0.30
+variable 	poission2	equal	0.29
+
+####variable for contact properties####
+
+####coefficient of restitution####
+variable	CoR11	equal	0.6
+variable	CoR12	equal	0.3
+variable	CoR21	equal	0.3
+variable	CoR22	equal	0.45
+
+####sliding friction coefficient####
+variable	sf11	equal	0.65	#Particle-particle sliding friction coefficient
+variable	sf12	equal	0.7
+variable	sf21	equal	0.7
+variable	sf22	equal	0.0
+
+
+####rolling friction coefficient####
+variable	rf11	equal	0.75	#Particle-particle rolling friction coefficient
+variable	rf12	equal	0.8
+variable	rf21	equal	0.8
+variable	rf22	equal	0.0
+
+
+####variable for particle####
+
+#Number of particle radius
+variable	nradii	equal	3
+
+variable	radius1	equal	0.00005	#m
+variable	radius2	equal	0.00005	#m
+variable	radius3	equal	0.00005	#m
+
+variable	frac1	equal	0.3945
+variable	frac2	equal	0.4059
+variable	frac3	equal	0.1996
+
+variable	density	equal	280		#kg/m³
+
+
+####filling parameters####
+
+variable	filltime	equal	2.0		#s, prueba rápida: alimentar 2 s
+
+variable	dischargetime	equal	90		#s, tiempo para que puedan salir partículas
+
+variable	fillmass	equal	4.4e-8 		#kg, 2 g de material
+
+variable	fillmassrate	equal	${fillmass}/${filltime}	#kg/s
+variable	fillmassrate	equal	4.4e-08/${filltime}	
+variable	fillmassrate	equal	4.4e-08/2	
+
+variable	fillsteps	equal	${filltime}/${dt}
+variable	fillsteps	equal	2/${dt}
+variable	fillsteps	equal	2/1e-06
+
+variable	dischargesteps	equal	${dischargetime}/${dt}
+variable	dischargesteps	equal	90/${dt}
+variable	dischargesteps	equal	90/1e-06
+
+
+
+####screw velocities####
+
+variable	screwPeriod	equal	1.029		#s, prueba rápida: 2 vueltas/s
+
+
+
+###################################Definition of simulationbox#######################################################
+
+region		reg block ${xmin} ${xmax} ${ymin} ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 ${xmax} ${ymin} ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 ${ymin} ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 -0.02 ${ymax} ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 -0.02 0.06 ${zmin} ${zmax} units box
+region		reg block -0.02 0.43 -0.02 0.06 -0.02 ${zmax} units box
+region		reg block -0.02 0.43 -0.02 0.06 -0.02 0.07 units box
+
+processors 6 1 1
+
+create_box	2 reg
+Created orthogonal box = (-0.02 -0.02 -0.02) to (0.43 0.06 0.07)
+  6 by 1 by 1 MPI processor grid
+
+
+neighbor	0.0001 bin
+
+neigh_modify	delay 0
+
+
+#################################Definition of the contact models####################################################
+
+pair_style gran model hertz tangential history rolling_friction epsd2
+
+pair_coeff	* *
+
+timestep ${dt}
+timestep 1e-06
+
+thermo 10000
+
+fix		integrator all nve/sphere
+
+fix		gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+
+###################################Definition of Material properties#################################################
+
+fix 		m1 all property/global youngsModulus peratomtype ${youngmodulus1} ${youngmodulus2}
+fix 		m1 all property/global youngsModulus peratomtype 7000000 ${youngmodulus2}
+fix 		m1 all property/global youngsModulus peratomtype 7000000 200000000
+
+fix 		m2 all property/global poissonsRatio peratomtype ${poission1} ${poission2}
+fix 		m2 all property/global poissonsRatio peratomtype 0.3 ${poission2}
+fix 		m2 all property/global poissonsRatio peratomtype 0.3 0.29
+
+fix 		m3 all property/global coefficientRestitution peratomtypepair ${natoms} ${CoR11} ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 ${CoR11} ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.3 ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.3 0.3 ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.3 0.3 0.45
+
+fix 		m4 all property/global coefficientFriction peratomtypepair ${natoms} ${sf11} ${sf12} ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 ${sf11} ${sf12} ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 ${sf12} ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.7 ${sf21} ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.7 0.7 ${sf22}
+fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.7 0.7 0
+
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair ${natoms} ${rf11} ${rf12} ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 ${rf11} ${rf12} ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 ${rf12} ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.8 ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.8 0.8 ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.8 0.8 0
+
+
+
+###################################Generation and Loading of the Geometry .stl#######################################
+fix case all mesh/surface file case_remesh.stl type 2 heal auto_remove_duplicates scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+fix screw all mesh/surface file screw_simplified.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+fix 		walls 		all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 2 meshes case screw
+
+fix		Movescrew	all move/mesh mesh screw rotate origin 0.2024435 0.019051 0.011497 axis -1. 0. 0. period ${screwPeriod}
+fix		Movescrew	all move/mesh mesh screw rotate origin 0.2024435 0.019051 0.011497 axis -1. 0. 0. period 1.029
+
+fix feed all mesh/surface file feed.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+fix outlet all mesh/surface file outlet_1.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+
+
+###################################Generation and Insertion of the particles#########################################
+
+fix pts1 all particletemplate/sphere 10487 atom_type 1 density constant ${density} radius constant ${radius1} volume_limit 1e-18
+fix pts1 all particletemplate/sphere 10487 atom_type 1 density constant 280 radius constant ${radius1} volume_limit 1e-18
+fix pts1 all particletemplate/sphere 10487 atom_type 1 density constant 280 radius constant 5e-05 volume_limit 1e-18
+
+fix pts2 all particletemplate/sphere 11887 atom_type 1 density constant ${density} radius constant ${radius2} volume_limit 1e-18
+fix pts2 all particletemplate/sphere 11887 atom_type 1 density constant 280 radius constant ${radius2} volume_limit 1e-18
+fix pts2 all particletemplate/sphere 11887 atom_type 1 density constant 280 radius constant 5e-05 volume_limit 1e-18
+
+fix pts3 all particletemplate/sphere 16561 atom_type 1 density constant ${density} radius constant ${radius3} volume_limit 1e-18
+fix pts3 all particletemplate/sphere 16561 atom_type 1 density constant 280 radius constant ${radius3} volume_limit 1e-18
+fix pts3 all particletemplate/sphere 16561 atom_type 1 density constant 280 radius constant 5e-05 volume_limit 1e-18
+
+fix 		pdd1 all particledistribution/discrete 32452867 ${nradii} pts1 ${frac1} pts2 ${frac2} pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 ${frac1} pts2 ${frac2} pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 0.3945 pts2 ${frac2} pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 0.3945 pts2 0.4059 pts3 ${frac3}
+fix 		pdd1 all particledistribution/discrete 32452867 3 pts1 0.3945 pts2 0.4059 pts3 0.1996
+
+fix		ins_mesh all mesh/surface/planar file feed.stl type 1 scale 1.0
+
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass ${fillmass} massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.005         	insertion_face ins_mesh extrude_length 0.001
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 4.4e-08 massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.005         	insertion_face ins_mesh extrude_length 0.001
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 4.4e-08 massrate 2.2e-08 overlapcheck yes all_in yes vel constant 0 0 -0.005         	insertion_face ins_mesh extrude_length 0.001
+
+
+################################### Particle Residence Time Track#########################################
+
+fix 	rt_outlet	all massflow/mesh mesh outlet vec_side 0 0 -1 file rt_outlet.txt writeTime
+
+fix 	rt_inlet	all massflow/mesh mesh feed vec_side 0 0 -1 file rt_inlet.txt writeTime
+
+
+###################################Outlet mass flow track#########################################
+
+fix	mfout	all massflow/mesh mesh outlet vec_side 0 0 -1
+
+fix	mfin	all massflow/mesh mesh feed vec_side 0 0 -1
+
+
+variable 	time equal step*dt
+
+variable 	in_mass_flow equal	f_mfin[3]
+
+variable 	out_mass_flow equal	f_mfout[3]
+
+fix mass_flow_rate all print 5000 "${time},${in_mass_flow},${out_mass_flow}" screen no title "t,in_mass_flow,out_mass_flow" file massflow.csv
+
+###################################Dumping of the data for post-processing to visualize############################
+
+#fix ts_check all check/timestep/gran 1000 0.1 0.1
+
+shell 	mkdir -p post
+
+variable dumptime equal 1.0		#guarda cada 0.05 s
+
+variable dumpstep equal ${dumptime}/${dt}
+variable dumpstep equal 1/${dt}
+variable dumpstep equal 1/1e-06
+
+dump	dmpparticle all custom ${dumpstep} post/particles_*.liggghts id type x y z vx vy vz fx fy fz radius mass
+dump	dmpparticle all custom 1000000 post/particles_*.liggghts id type x y z vx vy vz fx fy fz radius mass
+
+dump_modify	dmpparticle sort id
+
+dump	dmpscrew	all	mesh/stl ${dumpstep} post/screw_*.stl screw
+dump	dmpscrew	all	mesh/stl 1000000 post/screw_*.stl screw
+
+
+####################################RUN the simulation filling and discharge###########################################################
+
+run	${fillsteps}
+run	2000000
+Setting up run at Sat May 30 19:14:23 2026
+
+WARNING: Fix mesh: Mesh contains highly skewed element, moving mesh (if used) will not parallelize well (../surface_mesh_I.h:657)
+WARNING: Fix mesh: Mesh contains highly skewed element, moving mesh (if used) will not parallelize well (../surface_mesh_I.h:657)
+INFO: Particle insertion ins: 30.012075 particles every 200000 steps - particle rate 150.060375, (mass rate 2.200000e-08)
+      300 particles (mass 4.398230e-08) within 1800000 steps
+Memory usage per processor = 2133.46 Mbytes
+    Step    Atoms         KinEng            CPU 
+       0        0              0              0 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 1
+ - a total of 30 particle templates (mass 4.398230e-09) inserted so far.
+   10000       30  5.4977871e-14      49.088694 
+   20000       30  2.2302212e-13       101.8171 
+   30000       30   3.029612e-12        181.507 
+   40000       30  9.1690655e-12      284.25693 
+   50000       30  1.0910562e-11      397.72726 
+   60000       30  1.2890563e-11       526.5121 
+   70000       30  1.7909583e-11      675.23225 
+   80000       30  1.2453593e-11        788.159 
+   90000       30  2.4783248e-11      909.61483 
+  100000       30  1.5571693e-11      1035.8393 
+  110000       30  1.1512401e-11      1155.5268 
+  120000       30  1.5614913e-11      1281.5009 
+  130000       30  1.3175517e-11      1436.5271 
+  140000       30  9.6802963e-11      1633.5253 
+  150000       30   3.027641e-11      1888.4437 
+  160000       30  2.0943003e-11       2049.768 
+  170000       30  1.0910121e-11      2166.7119 
+  180000       29  1.7554976e-11      2460.2294 
+  190000       29   1.451781e-11       2568.659 
+  200000       29  9.1528081e-12      2680.8493 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 200001
+ - a total of 60 particle templates (mass 8.796459e-09) inserted so far.
+  210000       59  1.5891148e-11      2801.6375 
+  220000       59  2.5998248e-11      2949.9562 
+  230000       58  1.7568401e-11      3499.8148 
+  240000       58  8.7190013e-12      3616.7123 
+  250000       58  1.0639484e-11      3721.2768 
+  260000       58  1.2217072e-11      3838.2348 
+  270000       58  1.4437376e-11      3952.2607 
+  280000       58  2.3436687e-11      4064.3061 
+  290000       58  1.4289558e-11      4171.9514 
+  300000       58  1.2320943e-11      4277.3881 
+  310000       58  1.8719143e-11      4385.4514 
+  320000       58  1.2847324e-11      4509.8094 
+  330000       57  1.2658689e-11      4980.0334 
+  340000       56  1.6173937e-11      5426.3549 
+  350000       56  2.2814189e-11      5547.2316 
+  360000       54   2.946831e-11       7472.446 
+  370000       54   1.134489e-08      7855.5666 
+  380000       54  3.6908912e-11      8344.0804 
+  390000       54  5.0654812e-11      8525.4138 
+  400000       54  3.1209841e-11      8701.7926 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 400001
+ - a total of 90 particle templates (mass 1.319469e-08) inserted so far.
+  410000       84  3.2064713e-11      8854.2941 
+  420000       84  2.5381991e-11      8992.8672 
+  430000       84  1.7321985e-11      9120.4203 
+  440000       83  2.3296897e-11      9855.9769 
+  450000       83  6.7155637e-12       9960.871 
+  460000       83  1.2049066e-11      10054.862 
+  470000       83  3.1901426e-08      10703.555 
+  480000       83  1.4393608e-10      11470.797 
+  490000       83  2.0028324e-11      11698.045 
+  500000       83  2.5333344e-11      11820.424 
+  510000       81  1.8075303e-11       12685.13 
+  520000       81  1.5787592e-11      12791.806 
+  530000       81  3.5265342e-11      12915.929 
+  540000       80  2.3751371e-11      13837.922 
+  550000       80  8.6128881e-12      13951.221 
+  560000       80  1.3287478e-11      14036.798 
+  570000       78  2.0010425e-11      15474.572 
+  580000       77  1.7340298e-11      16003.494 
+  590000       76   1.283078e-11      17399.473 
+  600000       75  1.6581269e-11      17713.715 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 600001
+ - a total of 120 particle templates (mass 1.759292e-08) inserted so far.
+  610000      105  1.8979818e-11      17827.062 
+  620000      103    2.74993e-11       18559.15 
+  630000      103  2.3891248e-11      18673.962 
+  640000      102  3.5511199e-11      18940.912 
+  650000      102  3.7591054e-11      19086.565 
+  660000      102  2.3665784e-11      19205.315 
+  670000      101  3.2577144e-11      20118.372 
+  680000      100  1.8334452e-11      20998.885 
+  690000      100  2.0621761e-11      21118.819 
+  700000      100  1.1468794e-11      21230.266 
+  710000      100  1.0523815e-11      21338.426 
+  720000      100  7.3048046e-12      21432.957 
+  730000      100  2.0427834e-11      21522.534 
+  740000       98  3.4528063e-11      22066.282 
+  750000       98  1.2172046e-06      22358.026 
+  760000       97  2.4143689e-11      22772.839 
+  770000       97  3.7896083e-11      22900.939 
+  780000       97  1.1780514e-09      24461.353 
+  790000       97  1.5195097e-10      25111.463 
+  800000       96  7.4301856e-11      25658.096 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 800001
+ - a total of 150 particle templates (mass 2.199115e-08) inserted so far.
+  810000      125  3.9043345e-11       26251.81 
+  820000      125  3.3011891e-11      26371.039 
+  830000      125  2.0816508e-11      26472.322 
+  840000      125  2.0374723e-11      26578.374 
+  850000      125  1.1661286e-11      26682.799 
+  860000      124  7.3443158e-12      27324.379 
+  870000      124  1.4247633e-11      27428.523 
+  880000      124  1.1337366e-11      27538.782 
+  890000      124  2.0167015e-11      27639.471 
+  900000      124  2.3684946e-11      27744.453 
+  910000      124  1.5962985e-06      28046.213 
+  920000      123  2.2500861e-11       28694.53 
+  930000      123  3.6482401e-11      28801.125 
+  940000      123  2.0708609e-11      28925.852 
+  950000      123  2.0042196e-11      29022.514 
+  960000      123  1.4763912e-11      29129.975 
+  970000      123  1.6744409e-11        29230.3 
+  980000      123  8.5526513e-11      29972.043 
+  990000      123  2.3108296e-11      30180.585 
+ 1000000      122  1.2815153e-10      30725.951 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 1000001
+ - a total of 180 particle templates (mass 2.638938e-08) inserted so far.
+ 1010000      151  1.5634094e-11      32184.165 
+ 1020000      151  2.0887281e-11      32302.212 
+ 1030000      151  3.2283401e-11      32419.037 
+ 1040000      151  2.3166072e-11      32537.463 
+ 1050000      150  6.1859059e-11       34023.34 
+ 1060000      150  4.5328511e-11      34246.426 
+ 1070000      149  2.7539688e-11      35602.421 
+ 1080000      149  1.4037827e-11      35720.894 
+ 1090000      149  1.1569787e-11      35813.456 
+ 1100000      149  1.3005146e-11      35908.371 
+ 1110000      149  1.2204949e-11      36009.295 
+ 1120000      149  2.4772551e-06      36524.482 
+ 1130000      148  2.0081999e-11        36998.5 
+ 1140000      147  2.3747483e-11      37652.384 
+ 1150000      147  2.0473673e-11      37780.331 
+ 1160000      146  1.7671443e-11      38620.861 
+ 1170000      146    2.56639e-11      38721.764 
+ 1180000      146  1.8139151e-11      38839.436 
+ 1190000      146  2.3460687e-11      38978.195 
+ 1200000      146  1.5102479e-11       39088.02 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 1200001
+ - a total of 210 particle templates (mass 3.078761e-08) inserted so far.
+ 1210000      176  1.0570722e-11      39185.332 
+ 1220000      176  1.0324839e-11      39277.339 
+ 1230000      176  1.8385082e-11      39375.486 
+ 1240000      176  6.9656379e-12      39481.187 
+ 1250000      176  5.7166831e-12      39555.228 
+ 1260000      175  1.1191153e-11      40464.656 
+ 1270000      174  1.9727099e-11       40948.77 
+ 1280000      174  2.4880115e-11      41062.783 
+ 1290000      173   1.625431e-11      41242.442 
+ 1300000      173  1.9254044e-11      41346.406 
+ 1310000      173  1.7850997e-11      41445.539 
+ 1320000      173  1.4432499e-11      41555.014 
+ 1330000      173  1.4900554e-11      41659.068 
+ 1340000      171  2.1310941e-11      42381.834 
+ 1350000      170  2.7043923e-11      43085.688 
+ 1360000      169  2.7419152e-11      43558.737 
+ 1370000      169  1.9747071e-11      43674.857 
+ 1380000      169  2.4030222e-11      43781.112 
+ 1390000      169  2.9198622e-11      43888.068 
+ 1400000      169  1.9475689e-11      44001.078 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 1400001
+ - a total of 240 particle templates (mass 3.518584e-08) inserted so far.
+ 1410000      199  1.3774588e-11      44106.933 
+ 1420000      198  1.1138544e-11      44715.627 
+ 1430000      198  9.1790058e-12       44813.61 
+ 1440000      198   2.327691e-11      44915.566 
+ 1450000      198  2.8058528e-11      45029.216 
+ 1460000      198  2.0816675e-11      45150.542 
+ 1470000      198  2.8983544e-11      45262.945 
+ 1480000      198  2.7611603e-11      45369.532 
+ 1490000      198  2.3907005e-11      45480.394 
+ 1500000      197  2.7316313e-11      45813.878 
+ 1510000      197  3.4787318e-11      45923.008 
+ 1520000      196  2.0278961e-11      46269.008 
+ 1530000      196  1.9798151e-11      46375.055 
+ 1540000      196  6.3845683e-09      46719.112 
+ 1550000      196  2.8303984e-11      47170.215 
+ 1560000      193   1.883556e-11      49246.668 
+ 1570000      192  5.9713066e-08      51632.577 
+ 1580000      192  2.7218023e-09      54246.287 
+ 1590000      192  1.8008428e-09      55695.466 
+ 1600000      192  3.9970222e-11      56565.133 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 1600001
+ - a total of 270 particle templates (mass 3.958407e-08) inserted so far.
+ 1610000      221  4.9143176e-11      57300.898 
+ 1620000      220  3.9555052e-11       57718.86 
+ 1630000      220  4.7643073e-11      57946.462 
+ 1640000      220  3.0646862e-11      58136.816 
+ 1650000      220  2.5553185e-11      58301.281 
+ 1660000      220  2.7466582e-11      58454.766 
+ 1670000      220  3.8401187e-09      59594.369 
+ 1680000      220  5.1965791e-11       60148.31 
+ 1690000      220  2.7181928e-11      60350.453 
+ 1700000      218  2.1065377e-09      62777.783 
+ 1710000      218  1.0521465e-09      64543.071 
+ 1720000      218  1.9040477e-10      65271.393 
+ 1730000      218  9.7464971e-11      65686.559 
+ 1740000      218  4.7922619e-11       65966.82 
+ 1750000      217  2.2402961e-11      66266.715 
+ 1760000      217  1.6406727e-11      66389.828 
+ 1770000      217   1.246933e-11      66498.771 
+ 1780000      217  1.3157059e-11      66605.035 
+ 1790000      217  2.2038029e-11       66716.41 
+ 1800000      217  1.2770294e-09      67344.712 
+INFO: Particle insertion ins: inserted 30 particle templates (mass 4.398230e-09) at step 1800001
+ - a total of 300 particle templates (mass 4.398230e-08) inserted so far.
+ 1810000      247  2.6549058e-11      67879.925 
+ 1820000      247  3.3695543e-11      68037.927 
+ 1830000      247  3.5501365e-11      68179.243 
+ 1840000      246  2.9533005e-11      68931.053 
+ 1850000      246  2.6452082e-11      69042.155 
+ 1860000      246  3.0627335e-11      69148.061 
+ 1870000      245  2.8977092e-11      70010.274 
+ 1880000      245  3.1795093e-11      70135.129 
+ 1890000      245  2.0852549e-11      70249.309 
+ 1900000      243  8.9417473e-11          73047 
+ 1910000      243  2.4829353e-11      73216.368 
+ 1920000      243  1.4284739e-11      73345.344 
+ 1930000      243  1.7826008e-11      73451.768 
+ 1940000      243  1.2204246e-11      73545.838 
+ 1950000      242   1.995223e-11      74348.865 
+ 1960000      242  3.3806773e-11      74489.786 
+ 1970000      242   3.496122e-11      74627.029 
+ 1980000      241  2.4582396e-11      75062.439 
+ 1990000      241  3.5208998e-11      75168.524 
+ 2000000      241  2.1844167e-11      75284.298 
+Loop time of 75284.3 on 6 procs for 2000000 steps with 241 atoms, finish time Sun May 31 16:09:18 2026
+
+
+Pair  time (%) = 23.1751 (0.0307834)
+Neigh time (%) = 40379.8 (53.6364)
+Comm  time (%) = 3763.13 (4.99855)
+Outpt time (%) = 9.3832 (0.0124637)
+Other time (%) = 31108.8 (41.3218)
+
+Nlocal:    40.1667 ave 238 max 0 min
+Histogram: 5 0 0 0 0 0 0 0 0 1
+Nghost:    0 ave 0 max 0 min
+Histogram: 6 0 0 0 0 0 0 0 0 0
+Neighs:    78.8333 ave 473 max 0 min
+Histogram: 5 0 0 0 0 0 0 0 0 1
+
+Total # of neighbors = 473
+Ave neighs/atom = 1.96266
+Neighbor list builds = 48019
+Dangerous builds = 19428
+
+unfix	ins
+
+run	${dischargesteps}
+run	90000000
+Setting up run at Sun May 31 16:09:18 2026
+
+Memory usage per processor = 2138.76 Mbytes
+    Step    Atoms         KinEng            CPU 
+ 2000000      241  2.1844167e-11              0 
+ 2010000      241  1.8335345e-11      106.68317 
+ 2020000      241   1.785169e-11      211.98235 
+ 2030000      241  1.5789451e-11       311.4623 
+ 2040000      241  9.0485142e-12      403.57072 
+ 2050000      241   1.381957e-11      490.54645 
+ 2060000      241  1.3600582e-11      599.24721 
+ 2070000      241  1.3867031e-11       704.5033 
+ 2080000      241  1.6255957e-11      803.58123 
+ 2090000      241  1.7121405e-11      911.97308 
+ 2100000      241  8.7736457e-12      1018.4853 
+ 2110000      241  7.8378448e-12      1117.2556 
+ 2120000      241  6.9169428e-12      1204.8484 
+ 2130000      241   2.289142e-12      1297.8541 
+ 2140000      241  1.0812094e-12      1366.3084 
+ 2150000      241  4.0464215e-06       1647.593 
+ 2160000      239  2.8044374e-12      2811.6446 
+ 2170000      239  3.1912317e-12      2901.8903 
+ 2180000      238  2.8005133e-12      3571.8855 
+ 2190000      238   1.150098e-12      3663.1586 
+ 2200000      238  1.1568918e-12      3719.4908 
+ 2210000      238  1.2031974e-12      3777.6123 
+ 2220000      238  1.1827518e-12      3845.7824 
+ 2230000      238  2.3222947e-12      3917.3747 
+ 2240000      238  4.0315336e-12      4007.2362 
+ 2250000      238  1.6991156e-12      4085.7711 
+ 2260000      238  1.7440252e-12      4160.1286 
+ 2270000      237  2.0069445e-12      5103.5528 
+ 2280000      237  2.1971543e-12      5192.1041 
+ 2290000      237  2.6579258e-12      5281.4446 
+ 2300000      237  1.4326988e-12       5362.175 
+ 2310000      237  1.2711056e-12      5440.1201 
+ 2320000      236  7.7747648e-13       5689.499 
+ 2330000      235  6.7819097e-13      6070.1665 
+ 2340000      235  6.4528509e-13       6117.271 
+ 2350000      235  6.2042032e-13      6164.0669 
+ 2360000      235   6.505209e-13      6211.2345 
+ 2370000      235  8.7650095e-13      6261.5915 
+ 2380000      235  7.6230432e-13       6314.848 
+ 2390000      235  7.0241883e-13      6365.1001 
+ 2400000      235  6.3788304e-13      6413.7347 
+ 2410000      235  6.2585031e-13      6461.6269 
+ 2420000      235  5.0658134e-10      8693.2478 
+ 2430000      235  1.4360258e-10      9248.1662 
+ 2440000      235  1.3115736e-10      9671.1651 
+ 2450000      235  1.4942019e-10      10089.816 
+ 2460000      235  1.6772937e-10      10550.601 
+ 2470000      235  8.9104495e-12      10853.057 
+ 2480000      235  2.2022902e-12       10924.03 
+ 2490000      235  2.6041876e-12      11000.595 
+ 2500000      235  2.5119143e-12      11087.434 
+ 2510000      235  2.3290875e-12      11174.817 
+ 2520000      235  1.3869373e-12      11257.286 
+ 2530000      235  1.3791058e-12      11328.743 
+ 2540000      235  7.0675996e-13      11397.042 
+ 2550000      235  6.9151445e-13       11445.96 
+ 2560000      235   7.517901e-13      11493.329 
+ 2570000      235  7.4569675e-13      11551.497 
+ 2580000      235  7.3920911e-13      11767.906 
+ 2590000      235  6.9565346e-13      11881.306 
+ 2600000      235  6.6053336e-13      12035.191 
+ 2610000      235  6.5644434e-13      12083.563 
+ 2620000      235  6.8864477e-13      12132.131 
+ 2630000      235  7.2038786e-13      12179.679 
+ 2640000      235  7.1748671e-13      12230.389 
+ 2650000      235  7.0337345e-13      12274.362 
+ 2660000      235  6.1403553e-13      12322.774 
+ 2670000      235  5.9491936e-13      12373.197 
+ 2680000      235  7.2535823e-13       12420.58 
+ 2690000      235   9.504719e-13      12485.655 
+ 2700000      235  1.2639081e-12      12757.767 
+ 2710000      235  1.9978287e-12      13313.724 
+ 2720000      235  2.5859788e-12      13829.559 
+ 2730000      235  2.7324292e-12      13921.338 
+ 2740000      235  1.7708315e-12      14011.772 
+ 2750000      235  1.7459325e-12      14096.021 
+ 2760000      235  9.1789548e-13      14167.146 
+ 2770000      235  7.0367869e-13      14219.659 
+ 2780000      235  6.9123411e-13      14267.364 
+ 2790000      235  6.0669013e-13       14315.49 
+ 2800000      235  6.0010014e-13      14367.535 
+ 2810000      235  6.7126627e-13      14432.273 
+ 2820000      235  7.5558249e-13      14496.536 
+ 2830000      235  7.2983865e-13      14562.927 
+ 2840000      235  7.0014959e-13      14627.558 
+ 2850000      235  6.5587769e-13      14688.835 
+ 2860000      235  6.3188455e-13      14743.017 
+ 2870000      235  6.3939859e-13      14808.235 
+ 2880000      235  6.9720163e-13      14879.518 
+ 2890000      235  6.9826835e-13      14943.619 
+ 2900000      235  7.5969045e-13       15022.78 
+ 2910000      235  8.6921432e-13       15105.83 
+ 2920000      235  1.4795978e-12      15197.368 
+ 2930000      235  2.4783027e-12      15299.766 
+ 2940000      235  2.6463441e-12      15408.914 
+ 2950000      235  2.5294514e-12      15619.046 
+ 2960000      235  1.6485461e-12      15862.853 
+ 2970000      235  7.8625688e-13      16123.288 
+ 2980000      235  6.4232907e-13      16329.878 
+ 2990000      235  6.1288533e-13      16543.504 
+ 3000000      235   6.484713e-13        16595.2 
+ 3010000      235  7.2794194e-13      16641.513 
+ 3020000      235  7.5008859e-13        16687.8 
+ 3030000      235  7.0764576e-13      16738.231 
+ 3040000      235   6.558943e-13      16784.633 
+ 3050000      235  6.0032509e-13      16831.166 
+ 3060000      235  5.9420135e-13      16877.099 
+ 3070000      235  6.4953114e-13      16922.022 
+ 3080000      235  7.0498438e-13       16972.53 
+ 3090000      235  6.9127884e-13      17022.786 
+ 3100000      235  6.9935652e-13      17069.411 
+ 3110000      235  6.9368039e-13      17121.662 
+ 3120000      235  9.0016499e-13      17178.957 
+ 3130000      235  1.0422995e-12      17241.915 
+ 3140000      235  8.3912844e-13      17305.891 
+ 3150000      235  9.4026573e-13      17371.923 
+ 3160000      235  6.9405366e-13       17420.96 
+ 3170000      235  6.5249878e-13      17467.565 
+ 3180000      235  5.8941686e-13      17514.446 
+ 3190000      235  6.2475004e-13      17562.171 
+ 3200000      235  7.0882741e-13      17610.288 
+ 3210000      235  7.4073235e-13      17663.449 
+ 3220000      235  7.2396258e-13       17714.27 
+ 3230000      235   6.438209e-13      17761.662 
+ 3240000      235  6.1838928e-13      17809.143 
+ 3250000      235  6.2454831e-13      17856.237 
+ 3260000      235  7.9253015e-13      17905.186 
+ 3270000      235  8.3261498e-13      17963.883 
+ 3280000      235  9.2980042e-13       18025.82 
+ 3290000      235  1.0413391e-12      18090.129 
+ 3300000      235  9.7221942e-13      18152.145 
+ 3310000      235  6.6037564e-13      18214.407 
+ 3320000      235  7.2948543e-13      18262.149 
+ 3330000      235  1.1291497e-12      18310.113 
+ 3340000      235  8.6724601e-13      18363.014 
+ 3350000      235  7.2787531e-13      18415.745 
+ 3360000      235  6.7796717e-13      18463.666 
+ 3370000      235  6.6967785e-13      18511.828 
+ 3380000      235  6.2405897e-13      18559.748 
+ 3390000      235  6.4077183e-13      18608.073 
+ 3400000      235  6.5544976e-13       18656.11 
+ 3410000      235  8.4171964e-13      18702.819 
+ 3420000      235  9.5667906e-13      18761.888 
+ 3430000      235  1.1829564e-12      18832.279 
+ 3440000      235  1.3091641e-12      18905.533 
+ 3450000      235  1.2245113e-12      18982.152 
+ 3460000      235  1.1684652e-12      19057.863 
+ 3470000      235  9.5917603e-13      19122.919 
+ 3480000      235  7.1752522e-13      19176.612 
+ 3490000      235  6.6453408e-13       19222.62 
+ 3500000      235  6.3373125e-13      19266.305 
+ 3510000      235  6.3423171e-13      19313.791 
+ 3520000      235  6.7370167e-13      19361.578 
+ 3530000      235  7.1926583e-13      19410.216 
+ 3540000      235  7.1838459e-13      19465.191 
+ 3550000      235  7.1455799e-13      19512.926 
+ 3560000      235  6.2604284e-13      19561.268 
+ 3570000      235   5.997973e-13      19608.178 
+ 3580000      235  6.3368879e-13      19655.018 
+ 3590000      235   7.700565e-13      19701.934 
+ 3600000      235  9.4348392e-13      19758.414 
+ 3610000      235  1.2952036e-12      19825.883 
+ 3620000      235  1.5185277e-12      19902.315 
+ 3630000      235  1.7044174e-12      19982.706 
+ 3640000      235  1.7624718e-12      20064.663 
+ 3650000      235   1.356569e-12      20140.988 
+ 3660000      235  9.3724264e-13      20211.192 
+ 3670000      235  6.9957484e-13      20270.123 
+ 3680000      235  7.0422139e-13       20330.39 
+ 3690000      235  6.1219267e-13      20385.765 
+ 3700000      235  5.9893112e-13      20444.863 
+ 3710000      235  6.6925625e-13      20500.227 
+ 3720000      235  7.5437213e-13      20560.703 
+ 3730000      235    7.20598e-13      20622.941 
+ 3740000      235  6.7990059e-13       20680.83 
+ 3750000      235  6.4558505e-13      20742.036 
+ 3760000      235  6.0755666e-13      20800.861 
+ 3770000      235  6.1977568e-13      20859.077 
+ 3780000      235  6.6542545e-13      20917.182 
+ 3790000      235  8.0670983e-13      20976.403 
+ 3800000      235  8.9217213e-13      21048.247 
+ 3810000      235  1.0830624e-12      21126.474 
+ 3820000      235  1.1383985e-12      21214.141 
+ 3830000      235  1.0760945e-12      21305.382 
+ 3840000      235  1.1797721e-12      21392.898 
+ 3850000      235  8.5356653e-13      21468.674 
+ 3860000      235  7.4267526e-13      21529.007 
+ 3870000      235  6.7846698e-13      21576.329 
+ 3880000      235  6.4804736e-13      21623.885 
+ 3890000      235  6.3840165e-13      21671.674 
+ 3900000      235  6.3992656e-13      21719.682 
+ 3910000      235  7.1349012e-13      21768.546 
+ 3920000      235  7.3114397e-13      21816.934 
+ 3930000      235   7.026633e-13      21868.203 
+ 3940000      235  6.6065583e-13      21915.985 
+ 3950000      235  5.9922178e-13       21964.11 
+ 3960000      235  6.6365516e-13      22008.114 
+ 3970000      235  7.8682474e-13      22059.804 
+ 3980000      235  1.2072244e-12      22120.313 
+ 3990000      235  1.3402413e-12      22192.872 
+ 4000000      235  1.3957636e-12      22272.193 
+ 4010000      235  1.3339817e-12      22349.793 
+ 4020000      235  1.3835866e-12       22427.96 
+ 4030000      235  6.9716944e-13      22492.585 
+ 4040000      235  6.8942018e-13      22539.879 
+ 4050000      235  7.4509985e-13      22587.183 
+ 4060000      235     7.0543e-13       22638.18 
+ 4070000      235  6.5200515e-13      22686.594 
+ 4080000      235   6.092907e-13      22734.205 
+ 4090000      235  6.2863621e-13      22778.703 
+ 4100000      235  6.8876294e-13      22830.753 
+ 4110000      235  7.4780905e-13       22881.51 
+ 4120000      235  7.1302778e-13        22931.3 
+ 4130000      235  6.4740549e-13      22980.545 
+ 4140000      235   6.250554e-13      23027.319 
+ 4150000      235  7.3998308e-13       23075.01 
+ 4160000      235  6.5583031e-13      23126.368 
+ 4170000      235  9.3390769e-13      23177.885 
+ 4180000      235  8.3824227e-13      23235.552 
+ 4190000      235  8.6674918e-13      23294.085 
+ 4200000      235  6.0957322e-13      23344.235 
+ 4210000      235  6.7981006e-13      23394.981 
+ 4220000      235  6.4476768e-13      23440.752 
+ 4230000      235  7.2066976e-13      23488.431 
+ 4240000      235   7.647135e-13      23543.278 
+ 4250000      235  7.8225758e-13      23592.086 
+ 4260000      235  7.7984568e-13      23642.309 
+ 4270000      235  8.5320862e-13      23700.187 
+ 4280000      235  6.4019945e-13      23748.205 
+ 4290000      235  6.3213365e-13      23795.647 
+ 4300000      235  6.9118719e-13      23844.307 
+ 4310000      235  9.0460918e-13      23896.783 
+ 4320000      235  1.1471526e-12      23961.992 
+ 4330000      235   1.463021e-12      24036.154 
+ 4340000      235  1.6039561e-12      24118.602 
+ 4350000      235  1.7946933e-12      24278.858 
+ 4360000      235  1.9387598e-12      24587.588 
+ 4370000      235  1.0126759e-12      24885.415 
+ 4380000      235   8.403505e-13      25116.644 
+ 4390000      235  6.5789902e-13      25262.384 
+ 4400000      235   6.353767e-13      25309.956 
+ 4410000      235  6.4926076e-13      25357.566 
+ 4420000      235  6.6100026e-13      25405.374 
+ 4430000      235  6.9714253e-13      25453.346 
+ 4440000      235  7.5759463e-13      25504.795 
+ 4450000      235  7.0415676e-13       25550.97 
+ 4460000      235  6.3110207e-13      25598.638 
+ 4470000      235  6.1042134e-13      25647.032 
+ 4480000      235  7.1005972e-13      25693.581 
+ 4490000      235  7.3685335e-13      25739.855 
+ 4500000      235  7.1171722e-13      25791.461 
+ 4510000      235  6.9629982e-13      25842.916 
+ 4520000      235  6.7121449e-13      25890.001 
+ 4530000      235  7.2249787e-13      25941.707 
+ 4540000      235  1.0737132e-12      26005.106 
+ 4550000      235  1.7306336e-12      26078.651 
+ 4560000      235  2.1593655e-12      26160.668 
+ 4570000      235  2.4055914e-12      26246.247 
+ 4580000      235  2.4651252e-12      26337.485 
+ 4590000      235  1.7558669e-12      26423.652 
+ 4600000      235  1.1349714e-12      26503.318 
+ 4610000      235  7.5555579e-13      26567.844 
+ 4620000      235  7.4469217e-13      26621.509 
+ 4630000      235  7.2158026e-13      26669.332 
+ 4640000      235  6.8131066e-13      26720.856 
+ 4650000      235  6.4761656e-13      26767.569 
+ 4660000      235  6.3769418e-13      26809.962 
+ 4670000      235  6.4670972e-13      26857.066 
+ 4680000      235  6.8231276e-13      26904.622 
+ 4690000      235  7.0910798e-13      26951.699 
+ 4700000      235   7.132919e-13      27002.415 
+ 4710000      235    7.03063e-13      27054.298 
+ 4720000      235  6.0018099e-13      27101.755 
+ 4730000      235  5.8635105e-13      27146.875 
+ 4740000      235  6.8747252e-13      27196.334 
+ 4750000      235  9.2828926e-13      27248.047 
+ 4760000      235  1.1961866e-12      27312.758 
+ 4770000      235  1.4015381e-12      27382.976 
+ 4780000      235  1.5903591e-12      27460.601 
+ 4790000      235  1.6360509e-12      27540.269 
+ 4800000      235  1.2443303e-12      27611.593 
+ 4810000      235  8.9147002e-13      27681.506 
+ 4820000      235  7.2823432e-13      27731.172 
+ 4830000      235  7.7471298e-13      27786.336 
+ 4840000      235   6.925813e-13       27833.98 
+ 4850000      235  6.4862264e-13      27883.379 
+ 4860000      235  6.3266515e-13      27932.058 
+ 4870000      235  6.7604036e-13      28027.173 
+ 4880000      235   7.399411e-13      28204.262 
+ 4890000      235  7.4210398e-13      28362.881 
+ 4900000      235  6.6114467e-13      28537.128 
+ 4910000      235  6.5650097e-13      28689.223 
+ 4920000      235  6.2182144e-13      28852.937 
+ 4930000      235  6.3595478e-13      29001.872 
+ 4940000      235  7.8232521e-13      29176.448 
+ 4950000      235  1.0794111e-12      29360.796 
+ 4960000      235  1.4149412e-12      29682.728 
+ 4970000      235  1.7212831e-12      29845.171 
+ 4980000      235  1.7643342e-12      29923.568 
+ 4990000      235  1.0630731e-12      30000.594 
+ 5000000      235  1.0652844e-12      30076.629 
+ 5010000      235  7.4981619e-13      30135.266 
+ 5020000      235  7.4013731e-13      30186.818 
+ 5030000      235  6.8091215e-13      30245.386 
+ 5040000      235  6.4000452e-13      30545.691 
+ 5050000      235  6.4851731e-13      30824.908 
+ 5060000      235  6.5134986e-13       31077.92 
+ 5070000      235  6.8344079e-13      31341.694 
+ 5080000      235  7.4009289e-13      31610.244 
+ 5090000      235  6.9842356e-13      31902.472 
+ 5100000      235  6.1834354e-13      32139.575 
+ 5110000      235  5.8440423e-13      32188.811 
+ 5120000      235  6.8201535e-13      32237.272 
+ 5130000      235   8.229551e-13      32291.959 
+ 5140000      235  1.0929301e-12       32350.96 
+ 5150000      235  1.3902496e-12      32421.227 
+ 5160000      235  1.6133653e-12      32735.189 
+ 5170000      235  1.5696664e-12      33073.891 
+ 5180000      235  9.4899457e-13      33407.993 
+ 5190000      235    1.00227e-12      33726.279 
+ 5200000      235  6.9250496e-13      34019.307 
+ 5210000      235  7.6837137e-13      34293.798 
+ 5220000      235  7.0623365e-13      34450.261 
+ 5230000      235  6.4495122e-13      34497.928 
+ 5240000      235  6.1906188e-13      34543.574 
+ 5250000      235   7.561971e-13       34591.86 
+ 5260000      235  9.3972307e-13      34647.186 
+ 5270000      235  9.7248298e-13      34704.754 
+ 5280000      235  9.6503873e-13      34759.247 
+ 5290000      235  8.9139048e-13      34990.455 
+ 5300000      235  8.3385959e-13      35246.082 
+ 5310000      235  8.4405559e-13      35414.501 
+ 5320000      235  8.3700394e-13      35695.486 
+ 5330000      235   9.352186e-13      35879.269 
+ 5340000      235  1.3890034e-12      36168.217 
+ 5350000      235  1.7253831e-12      36395.894 
+ 5360000      235  1.8889201e-12      36733.619 
+ 5370000      235  1.3472124e-12      36985.731 
+ 5380000      235  1.2976769e-12      37093.101 
+ 5390000      235   8.736271e-13      37154.779 
+ 5400000      235  8.8999746e-13      37211.562 
+ 5410000      235  6.8147374e-13      37263.298 
+ 5420000      235  6.7212423e-13      37309.923 
+ 5430000      235  6.5757676e-13      37356.307 
+ 5440000      235  6.5656959e-13        37404.2 
+ 5450000      235  6.7488822e-13       37448.14 
+ 5460000      235  7.0689699e-13      37497.133 
+ 5470000      235  7.0524449e-13      37548.136 
+ 5480000      235  6.7346822e-13      37595.717 
+ 5490000      235  5.8085189e-13       37643.29 
+ 5500000      235  6.8322075e-13      37690.828 
+ 5510000      235  6.9791694e-13      37741.684 
+ 5520000      235  9.9518525e-13      37802.011 
+ 5530000      235  1.1811224e-12      37864.404 
+ 5540000      235  9.9430192e-13      37928.986 
+ 5550000      235  8.1777771e-13      37991.282 
+ 5560000      235  8.9880087e-13      38045.136 
+ 5570000      235  3.1670626e-12      38105.189 
+ 5580000      235  7.4167439e-12      38179.292 
+ 5590000      235  5.7837767e-12      38261.975 
+ 5600000      235  6.4352366e-12      38466.432 
+ 5610000      235  6.0928863e-12      38819.133 
+ 5620000      235  3.1958485e-12      39170.347 
+ 5630000      235   9.332872e-13      39512.003 
+ 5640000      235  8.8058517e-13        39819.4 
+ 5650000      235   8.138747e-13      40128.533 
+ 5660000      235  7.1176929e-13      40193.108 
+ 5670000      235  7.5499529e-13      40240.294 
+ 5680000      235  9.2239455e-13      40297.209 
+ 5690000      235  1.1526969e-12      40364.028 
+ 5700000      235  1.3574253e-12      40436.948 
+ 5710000      235  1.3347224e-12      40513.579 
+ 5720000      235  1.2615099e-12      40856.307 
+ 5730000      235  1.2013275e-12      41111.784 
+ 5740000      235   6.879295e-13      41170.539 
+ 5750000      235  6.0424926e-13      41216.256 
+ 5760000      235   6.473069e-13       41264.82 
+ 5770000      235  7.5234681e-13      41315.271 
+ 5780000      235  8.4468628e-13      41371.759 
+ 5790000      235  7.9953231e-13      41430.719 
+ 5800000      235  7.2274503e-13      41477.514 
+ 5810000      235   6.760592e-13      41525.429 
+ 5820000      235  6.8423786e-13      41572.221 
+ 5830000      235   6.471348e-13       41618.49 
+ 5840000      235   7.158947e-13      41665.734 
+ 5850000      235   8.045334e-13      41714.669 
+ 5860000      235  7.8581173e-13      41765.994 
+ 5870000      235   8.204818e-13      42067.985 
+ 5880000      235  9.9518105e-13      42375.074 
+ 5890000      235   1.189234e-12      42704.872 
+ 5900000      235  1.1323948e-12      43045.215 
+ 5910000      235   1.238879e-12      43378.141 
+ 5920000      235  8.2466022e-13      43694.822 
+ 5930000      235  7.3853203e-13      43752.308 
+ 5940000      235  6.6147505e-13      43799.346 
+ 5950000      235  6.6356363e-13      43845.967 
+ 5960000      235  6.5322416e-13       43894.45 
+ 5970000      235   7.354836e-13      43944.068 
+ 5980000      235  7.2806648e-13      43992.403 
+ 5990000      235  6.8898656e-13      44044.556 
+ 6000000      235  6.3417105e-13      44181.732 
+ 6010000      235  6.3955398e-13      44425.376 
+ 6020000      235  1.6243039e-12      44762.739 
+ 6030000      235  1.6107981e-12      45073.968 
+ 6040000      235  2.7326016e-12      45405.861 
+ 6050000      235  3.2989966e-12      45748.133 
+ 6060000      235  1.8646906e-12      46105.687 
+ 6070000      235  1.5479236e-12       46231.11 
+ 6080000      235  2.1129249e-12       46305.45 
+ 6090000      235  2.0393146e-12      46383.544 
+ 6100000      235  2.9963366e-12      46463.749 
+ 6110000      235  2.0719202e-12       46539.71 
+ 6120000      235  1.0223729e-12      46733.446 
+ 6130000      235  6.3021263e-13      47018.181 
+ 6140000      235  6.5544509e-13       47166.72 
+ 6150000      235   6.737273e-13      47432.941 
+ 6160000      235  7.4074665e-13      47580.222 
+ 6170000      235  7.6916778e-13       47850.56 
+ 6180000      235   6.841405e-13      48037.997 
+ 6190000      235  7.0630941e-13      48265.914 
+ 6200000      235  6.6140126e-13      48508.606 
+ 6210000      235  6.4524445e-13      48661.421 
+ 6220000      235  6.5660321e-13      48934.184 
+ 6230000      235  6.4872905e-13      49110.796 
+ 6240000      235  8.0983551e-13      49387.663 
+ 6250000      235     8.8843e-13      49540.948 
+ 6260000      235  8.3036067e-13      49601.302 
+ 6270000      235  8.4970678e-13      49667.527 
+ 6280000      235  8.2254967e-13        49730.5 
+ 6290000      235  8.0628668e-13      49789.624 
+ 6300000      235  9.8613746e-13      49847.526 
+ 6310000      235  7.0163768e-13       49901.03 
+ 6320000      235  6.7924332e-13      49953.727 
+ 6330000      235  6.8395734e-13      50105.422 
+ 6340000      235  6.4987513e-13      50368.158 
+ 6350000      235  6.7846459e-13      50536.313 
+ 6360000      235  9.8751825e-13      50726.152 
+ 6370000      235  8.4058127e-13      50997.795 
+ 6380000      235  9.8190369e-13      51167.449 
+ 6390000      235  9.5189785e-13       51451.36 
+ 6400000      235  1.3956151e-12      51685.854 
+ 6410000      235   1.860156e-12      51914.056 
+ 6420000      235   2.577282e-12      52206.277 
+ 6430000      235  1.7604929e-12      52411.172 
+ 6440000      235  1.9975428e-12      52704.432 
+ 6450000      235  1.8573378e-12      52937.215 
+ 6460000      235  2.0026141e-12      53232.632 
+ 6470000      235    1.01359e-12      53425.054 
+ 6480000      235  6.8930673e-13      53484.447 
+ 6490000      235  7.0555895e-13      53532.748 
+ 6500000      235  6.9330596e-13      53583.505 
+ 6510000      235  6.6075747e-13      53631.094 
+ 6520000      235  6.0454796e-13      53677.953 
+ 6530000      235  9.5011714e-13      53725.495 
+ 6540000      235  1.8867152e-12      53774.578 
+ 6550000      235  3.3570017e-12      53837.106 
+ 6560000      235  2.4118802e-12      53902.319 
+ 6570000      235  1.4831684e-12      53970.102 
+ 6580000      235  9.4506786e-13       54037.27 
+ 6590000      235  8.0929795e-13      54085.362 
+ 6600000      235  8.7822348e-13      54139.963 
+ 6610000      235  1.4941526e-12      54202.464 
+ 6620000      235  1.1400409e-12      54270.964 
+ 6630000      235   1.130811e-12      54342.619 
+ 6640000      235  1.1340195e-12      54410.808 
+ 6650000      235  5.9122662e-13      54470.631 
+ 6660000      235  6.7677134e-13      54518.041 
+ 6670000      235  7.5413565e-13      54572.168 
+ 6680000      235  7.8736997e-13      54629.139 
+ 6690000      235  7.5099125e-13      54685.354 
+ 6700000      235  7.3526189e-13       54732.13 
+ 6710000      235  6.7587888e-13      54780.355 
+ 6720000      235   6.881627e-13      54826.008 
+ 6730000      235  6.5815079e-13      54869.573 
+ 6740000      235  6.7873336e-13      54915.996 
+ 6750000      235  6.9865007e-13       54962.26 
+ 6760000      235  7.0965625e-13      55012.411 
+ 6770000      235  6.2177012e-13      55058.941 
+ 6780000      235  7.9019351e-13      55113.177 
+ 6790000      235  7.4513138e-13       55168.88 
+ 6800000      235  9.6981247e-13      55233.819 
+ 6810000      235  1.0429375e-12      55287.763 
+ 6820000      235  7.4248281e-13       55342.95 
+ 6830000      235  8.2831794e-13      55390.696 
+ 6840000      235   1.005244e-12      55440.761 
+ 6850000      235  9.0482651e-13      55494.528 
+ 6860000      235  8.2301219e-13       55548.49 
+ 6870000      235  7.3696403e-13      55595.805 
+ 6880000      235  7.6818765e-13      55643.794 
+ 6890000      235  6.9851207e-13      55692.295 
+ 6900000      235  6.2666118e-13      55737.456 
+ 6910000      235  6.7664228e-13      55784.472 
+ 6920000      235  7.8132829e-13      55837.343 
+ 6930000      235  1.0485237e-12      55896.512 
+ 6940000      235  1.2312726e-12      55961.844 
+ 6950000      235  1.2229316e-12      56029.576 
+ 6960000      235  9.0894102e-13      56096.276 
+ 6970000      235  6.8331396e-13       56145.44 
+ 6980000      235  6.9462836e-13      56191.645 
+ 6990000      235  6.5938924e-13        56238.8 
+ 7000000      235  6.8869583e-13      56289.228 
+ 7010000      235  7.2890858e-13       56336.15 
+ 7020000      235  6.9403983e-13      56383.003 
+ 7030000      235  6.2162255e-13      56429.962 
+ 7040000      235  6.4812147e-13      56479.023 
+ 7050000      235  7.9307543e-13      56525.645 
+ 7060000      235  9.0942306e-13      56578.925 
+ 7070000      235  1.1016149e-12      56637.988 
+ 7080000      235  1.0218713e-12      56700.295 
+ 7090000      235  7.9057397e-13      56761.818 
+ 7100000      235   8.472054e-13      56823.122 
+ 7110000      235  6.5792054e-13      56869.485 
+ 7120000      235  6.8045314e-13      56917.388 
+ 7130000      235  7.4610423e-13       56963.15 
+ 7140000      235  7.9876382e-13      57012.773 
+ 7150000      235  6.8821614e-13      57060.518 
+ 7160000      235  6.1317467e-13      57107.567 
+ 7170000      235  7.3153209e-13      57155.549 
+ 7180000      235  8.2203949e-13      57205.953 
+ 7190000      235  9.2415671e-13      57262.927 
+ 7200000      235  8.5258789e-13      57320.822 
+ 7210000      235   8.606843e-13      57371.301 
+ 7220000      235  1.0066791e-12      57431.382 
+ 7230000      235  9.6189592e-13      57497.441 
+ 7240000      235  1.0105208e-12      57560.669 
+ 7250000      235  9.8624566e-13      57620.956 
+ 7260000      235  6.9406917e-13      57678.559 
+ 7270000      235  7.7286284e-13      57726.984 
+ 7280000      235  6.8202164e-13      57775.229 
+ 7290000      235  6.4736049e-13      57824.236 
+ 7300000      235  7.2410319e-13       57871.73 
+ 7310000      235  8.6184921e-13      57922.331 
+ 7320000      235  8.7552723e-13      57982.053 
+ 7330000      235  8.0474521e-13      58043.775 
+ 7340000      235  7.3411685e-13      58094.549 
+ 7350000      235  9.1986681e-13      58144.477 
+ 7360000      235  1.2474503e-12      58208.435 
+ 7370000      235  1.6609925e-12      58274.067 
+ 7380000      235  2.1032594e-12      58344.004 
+ 7390000      235  2.3555686e-12      58418.102 
+ 7400000      235  1.5034707e-12      58491.214 
+ 7410000      235  1.2474155e-12      58560.093 
+ 7420000      235  1.4819247e-12      58627.621 
+ 7430000      235   9.465434e-13      58693.275 
+ 7440000      235  2.2391528e-12      58760.606 
+ 7450000      235  9.4031184e-13      58817.024 
+ 7460000      235  8.4831703e-13      58866.394 
+ 7470000      235  7.9264473e-13      58916.162 
+ 7480000      235  7.8654256e-13      58962.539 
+ 7490000      235  8.5145465e-13      59008.482 
+ 7500000      235  6.4478299e-13      59053.283 
+ 7510000      235   6.587712e-13      59101.526 
+ 7520000      235  6.7576918e-13       59150.04 
+ 7530000      235  6.8043306e-13      59202.393 
+ 7540000      235   7.778077e-13      59257.504 
+ 7550000      235  8.8482518e-13      59321.272 
+ 7560000      235  1.1569385e-12      59384.534 
+ 7570000      235  1.0225266e-12      59450.452 
+ 7580000      235  9.7277033e-13      59515.075 
+ 7590000      235   7.871563e-13       59572.69 
+ 7600000      235  7.2399826e-13      59623.326 
+ 7610000      235  6.7850765e-13       59667.31 
+ 7620000      235  6.7198381e-13      59714.594 
+ 7630000      235   6.325849e-13      59761.888 
+ 7640000      235  6.9049344e-13      59808.253 
+ 7650000      235  7.0610187e-13      59854.376 
+ 7660000      235  6.4993953e-13      59906.614 
+ 7670000      235  6.2520944e-13      59954.546 
+ 7680000      235  6.1036118e-13      60002.186 
+ 7690000      235  7.8906391e-13      60052.042 
+ 7700000      235  9.0759903e-13      60111.966 
+ 7710000      235  9.2181419e-13      60172.315 
+ 7720000      235  8.7848887e-13      60238.142 
+ 7730000      235  7.9683631e-13      60288.705 
+ 7740000      235  6.3902298e-13      60342.844 
+ 7750000      235  6.7029303e-13      60391.354 
+ 7760000      235  6.5528257e-13      60434.597 
+ 7770000      235  7.0892926e-13      60483.742 
+ 7780000      235  7.2592892e-13      60530.533 
+ 7790000      235  6.6419255e-13       60581.31 
+ 7800000      235  6.2154033e-13      60628.901 
+ 7810000      235  6.3816808e-13      60678.216 
+ 7820000      235  6.8740679e-13      60726.114 
+ 7830000      235  6.9621484e-13      60782.346 
+ 7840000      235  7.8896181e-13      60836.493 
+ 7850000      235  9.2248683e-13      60895.624 
+ 7860000      235  1.2444208e-12      60964.012 
+ 7870000      235  1.8418727e-12      61039.372 
+ 7880000      235  1.9386872e-12      61118.402 
+ 7890000      235  1.4829688e-12      61198.111 
+ 7900000      235  1.1571787e-12      61275.156 
+ 7910000      235  7.4027418e-13      61338.146 
+ 7920000      235  7.6078404e-13      61387.895 
+ 7930000      235  9.4735229e-13      61449.665 
+ 7940000      235  1.1830894e-12       61515.27 
+ 7950000      235  9.0136455e-13      61585.464 
+ 7960000      235  1.1469847e-12      61649.447 
+ 7970000      235  1.2675719e-12      61716.177 
+ 7980000      235  1.0290675e-12      61783.994 
+ 7990000      235  1.0257678e-12      61836.107 
+ 8000000      235  7.2246963e-13      61891.369 
+ 8010000      235   6.949682e-13      61937.103 
+ 8020000      235  6.6565834e-13      61985.862 
+ 8030000      235  6.5239399e-13      62033.884 
+ 8040000      235  8.1157405e-13      62083.782 
+ 8050000      235  7.2279798e-13      62139.541 
+ 8060000      235  8.4838262e-13       62197.77 
+ 8070000      235  9.3042999e-13       62257.51 
+ 8080000      235  7.5659399e-13      62314.876 
+ 8090000      235   8.376564e-13       62368.46 
+ 8100000      235  7.3822389e-13      62422.748 
+ 8110000      235  7.9215851e-13      62470.412 
+ 8120000      235  6.8144114e-13      62517.625 
+ 8130000      235  7.0371108e-13      62565.191 
+ 8140000      235  6.9407099e-13      62612.565 
+ 8150000      235  7.2413824e-13       62660.91 
+ 8160000      235   7.964412e-13      62707.926 
+ 8170000      235  7.8196375e-13      62754.373 
+ 8180000      235  6.5001441e-13      62805.007 
+ 8190000      235  6.8473518e-13      62850.627 
+ 8200000      235  8.2254306e-13      62904.672 
+ 8210000      235  1.1837412e-12       62969.13 
+ 8220000      235  1.4033858e-12      63038.742 
+ 8230000      235  1.4319612e-12      63113.636 
+ 8240000      235  1.4063167e-12      63188.801 
+ 8250000      235  1.2403416e-12      63257.552 
+ 8260000      235  1.1073784e-12      63314.626 
+ 8270000      235  7.4199124e-13      63363.983 
+ 8280000      235  6.8940241e-13      63411.946 
+ 8290000      235  7.1762846e-13      63456.449 
+ 8300000      235  7.1344467e-13      63507.481 
+ 8310000      235   6.637727e-13      63557.634 
+ 8320000      235  6.4548887e-13      63604.765 
+ 8330000      235  7.8061974e-13      63659.312 
+ 8340000      235  9.7783994e-13      63720.055 
+ 8350000      235  1.1409509e-12      63780.275 
+ 8360000      235  9.9026832e-13      63835.364 
+ 8370000      235  9.8328686e-13      63885.963 
+ 8380000      235  1.2096743e-12      63943.878 
+ 8390000      235  1.2715653e-12      64001.179 
+ 8400000      235   1.258226e-12      64068.255 
+ 8410000      235  1.2574211e-12      64139.152 
+ 8420000      235   1.218902e-12      64215.507 
+ 8430000      235   1.161921e-12      64286.001 
+ 8440000      235  9.9969292e-13      64351.302 
+ 8450000      235  8.4971552e-13      64413.223 
+ 8460000      235  2.1520294e-12      64470.874 
+ 8470000      235  1.0638195e-12      64526.716 
+ 8480000      235  8.0328011e-13      64580.787 
+ 8490000      235  8.1891614e-13      64633.537 
+ 8500000      235  9.3689468e-13      64687.907 
+ 8510000      235  7.7551494e-13      64744.993 
+ 8520000      235  6.8660093e-13      64798.349 
+ 8530000      235  6.4608146e-13      64845.379 
+ 8540000      235  7.6313777e-13      64890.584 
+ 8550000      235  6.7434791e-13      64939.288 
+ 8560000      235  6.3913109e-13      64990.166 
+ 8570000      235  6.6789278e-13      65038.887 
+ 8580000      235  7.4442153e-13      65096.363 
+ 8590000      235  1.1323925e-12      65162.086 
+ 8600000      235  1.2863966e-12      65233.924 
+ 8610000      235  1.4840378e-12      65311.696 
+ 8620000      235  1.3173563e-12      65390.567 
+ 8630000      235  1.3113077e-12      65460.876 
+ 8640000      235  7.0846054e-13      65522.353 
+ 8650000      235   6.668065e-13      65569.326 
+ 8660000      235  6.5125145e-13      65618.557 
+ 8670000      235  7.2278576e-13      65666.817 
+ 8680000      235  7.2272683e-13      65713.458 
+ 8690000      235  6.6394663e-13      65764.308 
+ 8700000      235  6.8765389e-13      65814.515 
+ 8710000      235  7.0550785e-13      65862.878 
+ 8720000      235  7.8380846e-13      65917.676 
+ 8730000      235  8.0196057e-13      65983.212 
+ 8740000      235  7.8147949e-13      66043.678 
+ 8750000      235  7.1144471e-13      66100.821 
+ 8760000      235  7.1920037e-13      66150.894 
+ 8770000      235  8.3472426e-13      66208.679 
+ 8780000      235  9.3773264e-13      66277.027 
+ 8790000      235  1.0316047e-12      66349.083 
+ 8800000      235  1.1627512e-12      66419.602 
+ 8810000      235  1.1379501e-12      66491.477 
+ 8820000      235    6.52509e-13      66553.012 
+ 8830000      235  6.4420974e-13      66602.467 
+ 8840000      235   6.250149e-13      66650.528 
+ 8850000      235  6.8326105e-13      66698.853 
+ 8860000      235  6.9542513e-13      66746.166 
+ 8870000      235  6.8897404e-13      66787.088 
+ 8880000      235  7.0331052e-13       66832.01 
+ 8890000      235  1.0014869e-12      66883.043 
+ 8900000      235  7.6277069e-13      66941.964 
+ 8910000      235  6.6816481e-13      66990.419 
+ 8920000      235  6.9288004e-13      67037.904 
+ 8930000      235  7.6373332e-13      67082.068 
+ 8940000      235  1.0051508e-12      67143.584 
+ 8950000      235  1.4959032e-12      67202.818 
+ 8960000      235  1.4246042e-12      67271.843 
+ 8970000      235  1.4241594e-12      67341.816 
+ 8980000      235  1.8795984e-12      67412.224 
+ 8990000      235  1.9217134e-12      67486.436 
+ 9000000      235  1.0374816e-12      67559.217 
+ 9010000      235  8.5285748e-13      67618.976 
+ 9020000      235  8.3152462e-13      67673.013 
+ 9030000      235  6.6592899e-13      67726.383 
+ 9040000      235  6.8255102e-13      67773.172 
+ 9050000      235  6.5546346e-13       67828.61 
+ 9060000      235  8.1029188e-13      67886.374 
+ 9070000      235  6.4183585e-13      67944.951 
+ 9080000      235  7.0673633e-13      68008.086 
+ 9090000      235  6.7680808e-13      68063.003 
+ 9100000      235  5.8364066e-13      68121.951 
+ 9110000      235  6.8055984e-13      68172.792 
+ 9120000      235  7.1674395e-13      68228.401 
+ 9130000      235  6.7484187e-13      68283.877 
+ 9140000      235  6.9762976e-13      68337.445 
+ 9150000      235  6.2382222e-13      68392.267 
+ 9160000      235  6.3746667e-13      68445.556 
+ 9170000      235  6.3267348e-13      68494.342 
+ 9180000      235  7.1885893e-13      68550.273 
+ 9190000      235  7.7933508e-13      68605.164 
+ 9200000      235  7.6367081e-13      68676.306 
+ 9210000      235  7.5944581e-13      68750.374 
+ 9220000      235  8.8634309e-13      68822.275 
+ 9230000      235  1.1092112e-12      68882.878 
+ 9240000      235  1.6877547e-12      68948.481 
+ 9250000      235  1.1749596e-12      69022.181 
+ 9260000      235  8.5390984e-13      69088.609 
+ 9270000      235   7.724565e-13      69155.815 
+ 9280000      235  9.3584033e-13       69221.55 
+ 9290000      235  7.0849107e-13      69275.785 
+ 9300000      235   6.879799e-13      69331.934 
+ 9310000      235  6.5939716e-13      69385.803 
+ 9320000      235  6.2468891e-13      69435.559 
+ 9330000      235  5.8353465e-13      69485.946 
+ 9340000      235  6.3535295e-13      69539.908 
+ 9350000      235  8.4140261e-13      69605.281 
+ 9360000      235  1.1793756e-12      69679.225 
+ 9370000      235  1.3149386e-12      69757.222 
+ 9380000      235  1.0217508e-12      69834.939 
+ 9390000      235  9.0202757e-13      69910.875 
+ 9400000      235  6.1613779e-13      69963.382 
+ 9410000      235  6.4153454e-13      70016.176 
+ 9420000      235  6.5223935e-13      70064.077 
+ 9430000      235  6.3972995e-13      70113.852 
+ 9440000      235  6.3579598e-13       70162.57 
+ 9450000      235  6.2579972e-13      70210.959 
+ 9460000      235  5.8872713e-13      70260.434 
+ 9470000      235  6.0844204e-13       70311.46 
+ 9480000      235  6.3775849e-13      70361.676 
+ 9490000      235  7.5040831e-13      70416.876 
+ 9500000      235  8.0433917e-13      70471.925 
+ 9510000      235  6.7416872e-13      70529.096 
+ 9520000      235  7.0755701e-13      70580.474 
+ 9530000      235  9.3839499e-13      70632.329 
+ 9540000      235  8.5622263e-13       70686.79 
+ 9550000      235  1.0889766e-12      70755.754 
+ 9560000      235  1.2288529e-12       70830.16 
+ 9570000      235  1.2623544e-12       70906.67 
+ 9580000      235  1.1701536e-12      70983.539 
+ 9590000      235   9.396209e-13      71055.026 
+ 9600000      235  5.8153258e-13      71113.922 
+ 9610000      235  6.6582375e-13      71163.999 
+ 9620000      235  7.6533787e-13      71218.208 
+ 9630000      235  8.0770372e-13      71280.784 
+ 9640000      235  6.8497464e-13      71334.745 
+ 9650000      235  7.2404097e-13      71383.886 
+ 9660000      235  6.5215961e-13      71434.004 
+ 9670000      235  6.5705388e-13      71483.023 
+ 9680000      235  6.5101031e-13      71530.365 
+ 9690000      235  6.4012692e-13      71581.534 
+ 9700000      235  6.4203238e-13      71632.088 
+ 9710000      235  5.9945151e-13          71677 
+ 9720000      235  7.5766363e-13      71732.675 
+ 9730000      235  8.3043269e-13      71796.219 
+ 9740000      235  6.4834897e-13      71855.892 
+ 9750000      235  7.2245401e-13      71914.222 
+ 9760000      235  7.2708193e-13      71969.695 
+ 9770000      235  7.7270142e-13      72021.164 
+ 9780000      235  6.0867828e-13      72072.011 
+ 9790000      235  6.4841382e-13      72120.337 
+ 9800000      235  6.5950356e-13      72169.396 
+ 9810000      235  7.6617925e-13      72219.238 
+ 9820000      235  7.3802559e-13      72277.591 
+ 9830000      235  6.6797835e-13      72327.828 
+ 9840000      235  5.7961178e-13      72376.046 
+ 9850000      235  5.5800696e-13       72428.34 
+ 9860000      235  6.2339543e-13      72478.848 
+ 9870000      235  6.4512689e-13       72525.75 
+ 9880000      235  6.8671719e-13      72584.425 
+ 9890000      235  7.0051139e-13      72644.817 
+ 9900000      235  7.1060025e-13      72695.975 
+ 9910000      235  6.0157263e-13      72744.351 
+ 9920000      235  6.1842909e-13      72793.705 
+ 9930000      235  8.2202483e-13      72847.637 
+ 9940000      235  6.4748097e-13      72898.891 
+ 9950000      235  1.2909579e-12      72948.806 
+ 9960000      235  8.5122622e-13       73001.25 
+ 9970000      235  6.9659647e-13      73052.912 
+ 9980000      235     6.0842e-13      73099.656 
+ 9990000      235  7.0029875e-13      73146.505 
+10000000      235  7.1643163e-13      73198.357 
+10010000      235  7.3449327e-13      73252.048 
+10020000      235  7.1549875e-13      73298.325 
+10030000      235  7.0410545e-13      73344.844 
+10040000      235  6.2283764e-13      73388.316 
+10050000      235  6.4650498e-13      73433.828 
+10060000      235  6.5822943e-13      73475.941 
+10070000      235  6.7692409e-13      73523.693 
+10080000      235  6.9476224e-13      73568.758 
+10090000      235  6.4881351e-13      73610.342 
+10100000      235  6.0989345e-13       73657.17 
+10110000      235  6.1028016e-13      73696.011 
+10120000      235  5.9411948e-13      73741.383 
+10130000      235  5.9975062e-13      73783.823 
+10140000      235  5.9763032e-13      73828.331 
+10150000      235  6.8455059e-13      73874.839 
+10160000      235    8.45947e-13      73929.648 
+10170000      235  8.9741204e-13      73990.596 
+10180000      235   8.111839e-13      74048.567 
+10190000      235  7.3642738e-13      74102.187 
+10200000      235   7.332083e-13      74147.952 
+10210000      235   7.204469e-13      74192.223 
+10220000      235  6.2530775e-13      74237.315 
+10230000      235  6.1080666e-13       74284.86 
+10240000      235  6.0660826e-13      74328.575 
+10250000      235  6.2952181e-13      74370.557 
+10260000      235  6.2550801e-13      74411.554 
+10270000      235  6.4631747e-13      74454.456 
+10280000      235  6.6202367e-13      74491.038 
+10290000      235   6.294067e-13       74534.32 
+10300000      235  6.0046928e-13       74575.91 
+10310000      235  6.9995039e-13      74618.376 
+10320000
