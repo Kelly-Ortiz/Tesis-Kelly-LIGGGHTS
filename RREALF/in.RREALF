@@ -1,4 +1,4 @@
-###################################Header for General commands#######################################################
+###################################Header for General commands#######################################################ELQUECORRIOMANANACONVREALMASCOF
 
 atom_style	granular		#Simulation of particles
 
@@ -19,9 +19,9 @@ variable xmin equal -0.02
 variable xmax equal 0.43	
 
 variable ymin equal -0.02
-variable ymax equal 0.06
+variable ymax equal 0.09
 
-variable zmin equal -0.02
+variable zmin equal -0.03
 variable zmax equal 0.07
 
 #Definition of the timestep
@@ -86,7 +86,7 @@ variable	density	equal	280		#kg/m³
 
 variable	filltime	equal	2.0		#s, prueba rápida: alimentar 2 s
 
-variable	dischargetime	equal	100		#s, tiempo para que puedan salir partículas
+variable	dischargetime	equal	110		#s, tiempo para que puedan salir partículas
 
 variable	fillmass	equal	4.4e-8 		#kg, 2 g de material
 
@@ -108,7 +108,7 @@ variable	screwPeriod	equal	1.029		#s, prueba rápida: 2 vueltas/s
 
 region		reg block ${xmin} ${xmax} ${ymin} ${ymax} ${zmin} ${zmax} units box
 
-processors 4 1 1 
+processors 6 1 1 
 
 create_box	2 reg
 
@@ -148,9 +148,9 @@ fix 		m5 all property/global coefficientRollingFriction peratomtypepair ${natoms
 
 
 ###################################Generation and Loading of the Geometry .stl#######################################
-fix case all mesh/surface file case_remesh.stl type 2 heal auto_remove_duplicates scale 1.0 curvature 1e-5 curvature_tolerant yes
+fix case all mesh/surface file case_remesh_fixed.stl type 2 heal auto_remove_duplicates scale 1.0 curvature 1e-5 curvature_tolerant yes
 
-fix screw all mesh/surface file screw_simplified.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+fix screw all mesh/surface file screw_simplified_fixed.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
 
 fix 		walls 		all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 2 meshes case screw 
 

@@ -148,9 +148,9 @@ fix 		m5 all property/global coefficientRollingFriction peratomtypepair ${natoms
 
 
 ###################################Generation and Loading of the Geometry .stl#######################################
-fix case all mesh/surface file case_remesh_fixed.stl type 2 heal auto_remove_duplicates scale 1.0 curvature 1e-5 curvature_tolerant yes
+fix case all mesh/surface file case_remesh.stl type 2 heal auto_remove_duplicates scale 1.0 curvature 1e-5 curvature_tolerant yes
 
-fix screw all mesh/surface file screw_simplified_fixed.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
+fix screw all mesh/surface file screw_simplified.stl type 2 scale 1.0 curvature 1e-5 curvature_tolerant yes
 
 fix 		walls 		all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 2 meshes case screw 
 
