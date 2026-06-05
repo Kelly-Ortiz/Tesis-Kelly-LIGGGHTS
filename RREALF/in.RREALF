@@ -19,9 +19,9 @@ variable xmin equal -0.02
 variable xmax equal 0.43	
 
 variable ymin equal -0.02
-variable ymax equal 0.09
+variable ymax equal 0.06
 
-variable zmin equal -0.03
+variable zmin equal -0.02
 variable zmax equal 0.07
 
 #Definition of the timestep
