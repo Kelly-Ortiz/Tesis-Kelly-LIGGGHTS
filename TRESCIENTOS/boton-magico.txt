@@ -1,0 +1,78 @@
+# ═══════════════════════════════════════════════════════════════
+#   BOTÓN MÁGICO v5 — serie D + arreglo de hyperthreads incluido
+#   Pegar TODO en Azure Cloud Shell (Bash)
+# ═══════════════════════════════════════════════════════════════
+
+# ───────── 1. DATOS DEL REPO ─────────
+GITHUB_URL="https://github.com/USUARIO-DE-ELLA/Tesis-Kelly-LIGGGHTS.git"
+GITHUB_TOKEN=""     # Vacío si es PÚBLICO. Token si es PRIVADO.
+
+# ───────── 2. MÁQUINA ─────────
+PRECIO="normal"    # "normal" = funciona siempre | "spot" = barato (necesita quota Spot)
+CORES="4"          # 4 = entra sin permiso | 16 = necesita aumento de quota
+LOC="eastus2"      # Si dice "SkuNotAvailable": westus2, centralus, southcentralus
+# ──────────────────────────────────────────────────────────────
+
+# (No tocar de aquí para abajo)
+RG="liggghts"; VM="motor"; USR="kelly"
+
+case "$CORES" in
+  2)  TAM="Standard_D2s_v3"  ;;
+  4)  TAM="Standard_D4s_v3"  ;;
+  8)  TAM="Standard_D8s_v3"  ;;
+  16) TAM="Standard_D16s_v3" ;;
+  32) TAM="Standard_D32s_v3" ;;
+  *)  TAM="Standard_D4s_v3"; CORES="4" ;;
+esac
+
+if [ "$PRECIO" = "spot" ]; then
+  SPOT_FLAGS="--priority Spot --eviction-policy Deallocate --max-price -1"
+else
+  SPOT_FLAGS=""
+fi
+
+if [ -n "$GITHUB_TOKEN" ]; then
+  CLONE_URL=$(echo $GITHUB_URL | sed "s|https://|https://$GITHUB_TOKEN@|")
+else
+  CLONE_URL=$GITHUB_URL
+fi
+
+CORRER_B64="IyEvYmluL2Jhc2gKIyBDb21hbmRvICJjb3JyZXIiIOKAlCBlamVjdXRhIHVuYSBzaW11bGFjaW9uIExJR0dHSFRTCkNBUlBFVEE9JDEKVVNVQVJJTz0kKHdob2FtaSkKUkVQTz0iL2hvbWUvJFVTVUFSSU8vcmVwbyIKCmlmIFsgLXogIiRDQVJQRVRBIiBdOyB0aGVuCiAgZWNobyAiIgogIGVjaG8gIiAgVXNvOiAgY29ycmVyIE5PTUJSRV9ERV9MQV9DQVJQRVRBIgogIGVjaG8gIiIKICBlY2hvICIgIFNpbXVsYWNpb25lcyBkaXNwb25pYmxlcyBlbiBlbCByZXBvOiIKICBmaW5kICRSRVBPIC1uYW1lICdpbi4qJyAtdHlwZSBmIHwgc2VkICdzfC4qL1woW14vXSpcKS9pblwuLip8ICAgIC0gXDF8JyB8IHNvcnQgLXUKICBlY2hvICIiCiAgZXhpdCAxCmZpCgpSVVRBPSQoZmluZCAkUkVQTyAtdHlwZSBkIC1uYW1lICIkQ0FSUEVUQSIgfCBoZWFkIC0xKQppZiBbIC16ICIkUlVUQSIgXTsgdGhlbgogIGVjaG8gIiAgRVJST1I6IE5vIGVuY29udHJlIGxhIGNhcnBldGEgJyRDQVJQRVRBJyBlbiBlbCByZXBvLiIKICBleGl0IDEKZmkKCkFSQ0hJVk89JChmaW5kICIkUlVUQSIgLW5hbWUgJ2luLionIC10eXBlIGYgfCBoZWFkIC0xKQpOT01CUkU9JChiYXNlbmFtZSAiJEFSQ0hJVk8iKQpDT1JFUz0kKG5wcm9jKQoKZWNobyAiPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09IgplY2hvICIgIFNpbXVsYWNpb24gOiAkQ0FSUEVUQSIKZWNobyAiICBBcmNoaXZvICAgIDogJE5PTUJSRSIKZWNobyAiICBDb3JlcyAgICAgIDogJENPUkVTIgplY2hvICIgIEluaWNpbyAgICAgOiAkKGRhdGUgJyslSDolTTolUyBkZWwgJWQtJW0tJVknKSIKZWNobyAiPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09IgoKIyBDYXJwZXRhIGRlIHRyYWJham8gdGVtcG9yYWwgKG5vIHRvY2EgZWwgb3JpZ2luYWwpClRSQUJBSk89Ii90bXAvdHJhYmFqby8kQ0FSUEVUQSIKcm0gLXJmICIkVFJBQkFKTyIKbWtkaXIgLXAgIiRUUkFCQUpPL3Bvc3QiCmNwIC1yICIkUlVUQSIvLiAiJFRSQUJBSk8vIgoKIyBBanVzdGFyIHByb2Nlc3NvcnMgYWwgbnVtZXJvIGRlIGNvcmVzIGRlIGVzdGEgVk0gKGdlb21ldHJpYSBkZWwgdG9ybmlsbG86IGVuIFgpCmlmIGdyZXAgLXEgIl5wcm9jZXNzb3JzIiAiJFRSQUJBSk8vJE5PTUJSRSI7IHRoZW4KICBzZWQgLWkgInMvXnByb2Nlc3NvcnMuKi9wcm9jZXNzb3JzICRDT1JFUyAxIDEvIiAiJFRSQUJBSk8vJE5PTUJSRSIKZWxzZQogIHNlZCAtaSAiL15jcmVhdGVfYm94L2EgcHJvY2Vzc29ycyAkQ09SRVMgMSAxIiAiJFRSQUJBSk8vJE5PTUJSRSIKZmkKCiMgRWplY3V0YXIKZG9ja2VyIHJ1biAtLXJtIFwKICAtdiAiJFRSQUJBSk8iOi9zaW11bGFjaW9uZXMgXAogIGNlc2Fyc2FudDIwMDAvbGlnZ2dodHMtbW90b3ItdjIgXAogIG1waXJ1biAtbnAgJENPUkVTIC0tYWxsb3ctcnVuLWFzLXJvb3QgLS1iaW5kLXRvIG5vbmUgLS11c2UtaHd0aHJlYWQtY3B1cyBcCiAgbG1wMzgwIC1pbiAvc2ltdWxhY2lvbmVzLyROT01CUkUgLWxvZyAvc2ltdWxhY2lvbmVzL2xvZ19zaW0udHh0CgojIEd1YXJkYXIgcmVzdWx0YWRvcyBkZSB2dWVsdGEgZW4gbGEgY2FycGV0YSBkZWwgcmVwbwpERVNUSU5PPSIkUlVUQS9yZXN1bHRhZG9zX2F6dXJlIgpta2RpciAtcCAiJERFU1RJTk8iCmNwIC1yICIkVFJBQkFKTy9wb3N0IiAiJERFU1RJTk8vIiAyPi9kZXYvbnVsbApjcCAiJFRSQUJBSk8iLyouY3N2ICIkREVTVElOTy8iIDI+L2Rldi9udWxsCmNwICIkVFJBQkFKTyIvcnRfKi50eHQgIiRERVNUSU5PLyIgMj4vZGV2L251bGwKY3AgIiRUUkFCQUpPL2xvZ19zaW0udHh0IiAiJERFU1RJTk8vIiAyPi9kZXYvbnVsbAoKZWNobyAiPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09IgplY2hvICIgIExJU1RPOiAkQ0FSUEVUQSIKZWNobyAiICBGaW4gICA6ICQoZGF0ZSAnKyVIOiVNOiVTIGRlbCAlZC0lbS0lWScpIgplY2hvICIgIFJlc3VsdGFkb3MgZ3VhcmRhZG9zIGVuOiAkREVTVElOTyIKZWNobyAiPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Igo="
+
+echo ">>> [1/4] Creando grupo de recursos en $LOC..."
+az group create -n $RG -l $LOC -o none && \
+echo ">>> [2/4] Creando la maquina ($TAM, $PRECIO, $CORES cores)..." && \
+az vm create -g $RG -n $VM \
+  --image Ubuntu2204 --size $TAM $SPOT_FLAGS \
+  --admin-username $USR --generate-ssh-keys \
+  --os-disk-size-gb 64 --storage-sku Premium_LRS -o none && \
+echo ">>> [3/4] Instalando Docker, LIGGGHTS y repo (10-15 min)..." && \
+az vm run-command invoke -g $RG -n $VM --command-id RunShellScript --scripts "
+curl -fsSL https://get.docker.com | bash
+usermod -aG docker $USR
+docker pull cesarsant2000/liggghts-motor-v2
+cd /home/$USR
+git clone $CLONE_URL repo
+chown -R $USR:$USR /home/$USR/repo
+echo '$CORRER_B64' | base64 -d > /usr/local/bin/correr
+chmod +x /usr/local/bin/correr
+" -o none && \
+IP=$(az vm show -d -g $RG -n $VM --query publicIps -o tsv) && \
+echo "" && \
+echo "═══════════════════════════════════════════════" && \
+echo "   TODO LISTO ($TAM, $PRECIO, $LOC)" && \
+echo "═══════════════════════════════════════════════" && \
+echo "   IMPORTANTE: el apagado automatico esta APAGADO" && \
+echo "   (acuerdate de apagar la VM al terminar)" && \
+echo "" && \
+echo "   Conectarte:   ssh $USR@$IP" && \
+echo "   Verificar:    ls ~/repo" && \
+echo "   Correr:       screen -S sim" && \
+echo "                 correr NOMBRE_DE_LA_CARPETA" && \
+echo "   Salir:        Ctrl+A luego D" && \
+echo "   Apagar (al terminar, en Cloud Shell):" && \
+echo "                 az vm deallocate -g liggghts -n motor" && \
+echo "═══════════════════════════════════════════════"
+
+echo ""
+echo "(Si fallo: limpia con  az group delete -n liggghts --yes --no-wait  y reintenta)"
