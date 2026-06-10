@@ -86,7 +86,7 @@ variable	density	equal	1550		#kg/m³
 
 variable	filltime	equal	0.2		#s, prueba rápida: alimentar 2 s
 
-variable	dischargetime	equal	5		#s, tiempo para que puedan salir partículas
+variable	dischargetime	equal	90		#s, tiempo para que puedan salir partículas
 
 variable	fillmass	equal	0.0000001 		#kg, 2 g de material
 
