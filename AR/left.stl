@@ -1,0 +1,86 @@
+solid AutoCAD
+   facet normal 0.0000000e+00 0.0000000e+00 1.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 5.7052382e-02 6.5500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.5500000e-02
+         vertex 2.1608736e-02 1.0523821e-03 6.5500000e-02
+      endloop
+   endfacet
+   facet normal 0.0000000e+00 0.0000000e+00 1.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 1.0523821e-03 6.5500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.5500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.5500000e-02
+      endloop
+   endfacet
+   facet normal 0.0000000e+00 0.0000000e+00 -1.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 1.0523821e-03 6.4500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.4500000e-02
+         vertex 2.1608736e-02 5.7052382e-02 6.4500000e-02
+      endloop
+   endfacet
+   facet normal -0.0000000e+00 0.0000000e+00 -1.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 5.7052382e-02 6.4500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.4500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.4500000e-02
+      endloop
+   endfacet
+   facet normal 0.0000000e+00 -1.0000000e+00 0.0000000e+00
+      outer loop
+         vertex 1.6087357e-03 1.0523821e-03 6.5500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.4500000e-02
+         vertex 2.1608736e-02 1.0523821e-03 6.5500000e-02
+      endloop
+   endfacet
+   facet normal 0.0000000e+00 -1.0000000e+00 -0.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 1.0523821e-03 6.5500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.4500000e-02
+         vertex 2.1608736e-02 1.0523821e-03 6.4500000e-02
+      endloop
+   endfacet
+   facet normal -1.0000000e+00 -0.0000000e+00 -0.0000000e+00
+      outer loop
+         vertex 1.6087357e-03 5.7052382e-02 6.5500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.4500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.5500000e-02
+      endloop
+   endfacet
+   facet normal -1.0000000e+00 -0.0000000e+00 -0.0000000e+00
+      outer loop
+         vertex 1.6087357e-03 1.0523821e-03 6.5500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.4500000e-02
+         vertex 1.6087357e-03 1.0523821e-03 6.4500000e-02
+      endloop
+   endfacet
+   facet normal 0.0000000e+00 1.0000000e+00 0.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 5.7052382e-02 6.5500000e-02
+         vertex 2.1608736e-02 5.7052382e-02 6.4500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.5500000e-02
+      endloop
+   endfacet
+   facet normal 0.0000000e+00 1.0000000e+00 0.0000000e+00
+      outer loop
+         vertex 1.6087357e-03 5.7052382e-02 6.5500000e-02
+         vertex 2.1608736e-02 5.7052382e-02 6.4500000e-02
+         vertex 1.6087357e-03 5.7052382e-02 6.4500000e-02
+      endloop
+   endfacet
+   facet normal 1.0000000e+00 -0.0000000e+00 0.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 1.0523821e-03 6.5500000e-02
+         vertex 2.1608736e-02 1.0523821e-03 6.4500000e-02
+         vertex 2.1608736e-02 5.7052382e-02 6.5500000e-02
+      endloop
+   endfacet
+   facet normal 1.0000000e+00 -0.0000000e+00 0.0000000e+00
+      outer loop
+         vertex 2.1608736e-02 5.7052382e-02 6.5500000e-02
+         vertex 2.1608736e-02 1.0523821e-03 6.4500000e-02
+         vertex 2.1608736e-02 5.7052382e-02 6.4500000e-02
+      endloop
+   endfacet
+endsolid AutoCAD

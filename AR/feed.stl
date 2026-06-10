@@ -1,0 +1,16 @@
+solid feed
+  facet normal 0 0 1
+    outer loop
+      vertex 0.0056 0.0041 0.1120
+      vertex 0.0856 0.0041 0.1120
+      vertex 0.0856 0.0541 0.1120
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0.0056 0.0041 0.1120
+      vertex 0.0856 0.0541 0.1120
+      vertex 0.0056 0.0541 0.1120
+    endloop
+  endfacet
+endsolid feed
