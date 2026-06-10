@@ -1,0 +1,448 @@
+#!/usr/bin/env bash
+#==============================================================================
+# correr — Ejecutor de simulaciones LIGGGHTS con respaldo automático
+#==============================================================================
+#
+# DESCRIPCIÓN
+#   Ejecuta una simulación LIGGGHTS alojada en el repositorio de la tesis.
+#   Detecta automáticamente los recursos de la máquina (núcleos y memoria),
+#   ajusta la descomposición del dominio y escribe puntos de control
+#   periódicos que permiten reanudar la simulación tras cualquier
+#   interrupción (reinicio del equipo, falta de memoria o pausa manual)
+#   sin introducir artefactos en la física del tornillo giratorio.
+#
+# USO
+#   correr <simulacion> [opciones]
+#   correr --listar
+#   correr --todas
+#   correr --ayuda
+#
+# Consulte la ayuda integrada con:  correr --ayuda
+#==============================================================================
+
+set -uo pipefail
+
+#------------------------------------------------------------------------------
+# Parámetros de configuración del entorno
+#------------------------------------------------------------------------------
+readonly DIR_REPO="${HOME}/repo"
+readonly DIR_TRABAJO="${HOME}/runs"
+readonly GB_RESERVADOS_POR_PROCESO=5
+readonly IMAGEN_V1="cesarsant2000/liggghts-motor"
+readonly IMAGEN_V2="cesarsant2000/liggghts-motor-v2"
+readonly PASOS_RESPALDO_POR_DEFECTO=1000000
+
+#------------------------------------------------------------------------------
+# mostrar_ayuda
+#   Imprime la guía de uso completa orientada a la usuaria final.
+#------------------------------------------------------------------------------
+mostrar_ayuda() {
+    cat <<'AYUDA'
+==============================================================================
+  correr — Ejecutor de simulaciones LIGGGHTS
+==============================================================================
+
+QUÉ HACE
+  Corre una simulación del repositorio de la tesis. Elige automáticamente
+  cuántos procesos usar según la máquina y guarda puntos de control para
+  poder retomar la simulación si se interrumpe.
+
+FORMA DE USO
+  correr <simulacion> [opciones]
+
+EJEMPLOS
+  correr MASVEL2MENCOFAZURE
+        Corre esa simulación con la configuración automática.
+
+  correr MASVEL2MENCOFAZURE --nucleos 4
+        Corre usando exactamente 4 procesos.
+
+  correr MASVEL2MENCOFAZURE --version v1
+        Corre usando el contenedor v1 en lugar del v2 (predeterminado).
+
+  correr MASVEL2MENCOFAZURE --nucleos 8 --version v2
+        Combina ambas opciones.
+
+  correr MASVEL2MENCOFAZURE --reiniciar
+        Ignora cualquier punto de control y empieza desde cero.
+
+OPCIONES
+  -n, --nucleos N     Número de procesos a utilizar.
+                      Si se omite, se calcula según CPU y memoria.
+  -v, --version V     Versión del contenedor: v1 o v2. Predeterminado: v2.
+  -r, --reiniciar     Fuerza el inicio desde cero (descarta el respaldo).
+  -l, --listar        Muestra las simulaciones disponibles y termina.
+  -e, --estado        Muestra el avance de las simulaciones y termina.
+  -t, --todas         Ejecuta en orden todas las simulaciones pendientes.
+  -h, --ayuda         Muestra esta ayuda y termina.
+
+CÓMO TRABAJAR SIN PERDER LA SESIÓN
+  Antes de lanzar una simulación larga, abra una sesión persistente:
+      screen -S sim
+  Lance la simulación y, para salir sin detenerla, presione:
+      Ctrl+A   y luego   D
+  Para volver a ver el avance:
+      screen -r sim
+
+QUÉ HACER SI SE INTERRUMPE
+  Vuelva a ejecutar exactamente el mismo comando. El programa detecta el
+  último punto de control y reanuda la simulación automáticamente.
+
+DÓNDE QUEDAN LOS RESULTADOS
+  ~/repo/<simulacion>/resultados/
+
+==============================================================================
+AYUDA
+}
+
+#------------------------------------------------------------------------------
+# detectar_motor
+#   Determina si se usará Docker o Podman como motor de contenedores.
+#   Imprime el nombre del motor disponible o termina con error.
+#------------------------------------------------------------------------------
+detectar_motor() {
+    if docker ps >/dev/null 2>&1; then
+        echo "docker"
+    elif command -v podman >/dev/null 2>&1; then
+        echo "podman"
+    else
+        echo "ERROR: No hay un motor de contenedores disponible sin privilegios." >&2
+        echo "       Cierre la sesión, vuelva a conectarse y verifique con:" >&2
+        echo "       docker run hello-world" >&2
+        return 1
+    fi
+}
+
+#------------------------------------------------------------------------------
+# detectar_nucleos_fisicos
+#   Devuelve el número de núcleos físicos reales (sin contar hyperthreading).
+#------------------------------------------------------------------------------
+detectar_nucleos_fisicos() {
+    local nucleos
+    nucleos=$(lscpu -p=Core,Socket 2>/dev/null | grep -v '^#' | sort -u | wc -l)
+    if [[ -z "${nucleos}" || "${nucleos}" -lt 1 ]]; then
+        nucleos=$(nproc)
+    fi
+    echo "${nucleos}"
+}
+
+#------------------------------------------------------------------------------
+# calcular_procesos
+#   Calcula el número de procesos a usar combinando los núcleos físicos
+#   disponibles y un límite por memoria para evitar agotar la RAM.
+#   Argumento opcional: número de procesos forzado por la usuaria.
+#------------------------------------------------------------------------------
+calcular_procesos() {
+    local forzado="${1:-}"
+    local fisicos ram_mb ram_gb tope procesos
+
+    fisicos=$(detectar_nucleos_fisicos)
+    ram_mb=$(free -m | awk '/^Mem:/{print $2}')
+    ram_gb=$(( ram_mb / 1024 ))
+    tope=$(( ram_gb / GB_RESERVADOS_POR_PROCESO ))
+    [[ "${tope}" -lt 1 ]] && tope=1
+
+    procesos="${fisicos}"
+    [[ "${tope}" -lt "${procesos}" ]] && procesos="${tope}"
+    [[ -n "${forzado}" ]] && procesos="${forzado}"
+
+    echo "${procesos}"
+}
+
+#------------------------------------------------------------------------------
+# ruta_simulacion
+#   Localiza la carpeta de una simulación dentro del repositorio.
+#------------------------------------------------------------------------------
+ruta_simulacion() {
+    find "${DIR_REPO}" -type d -name "$1" 2>/dev/null | head -1
+}
+
+#------------------------------------------------------------------------------
+# listar_simulaciones
+#   Muestra el nombre de todas las simulaciones disponibles en el repositorio.
+#------------------------------------------------------------------------------
+listar_simulaciones() {
+    echo "Simulaciones disponibles en el repositorio:"
+    find "${DIR_REPO}" -name 'in.*' -type f 2>/dev/null \
+        | sed 's|.*/\([^/]*\)/in\..*|  - \1|' | sort -u
+}
+
+#------------------------------------------------------------------------------
+# mostrar_estado
+#   Resume el avance de cada simulación que tenga trabajo en curso o resultados.
+#------------------------------------------------------------------------------
+mostrar_estado() {
+    echo "Estado de las simulaciones:"
+    local dir nombre paso completado
+    for dir in "${DIR_TRABAJO}"/*/; do
+        [[ -d "${dir}" ]] || continue
+        nombre=$(basename "${dir}")
+        if [[ -f "${dir}/log_sim.txt" ]]; then
+            paso=$(grep -Eo '^[[:space:]]*[0-9]+' "${dir}/log_sim.txt" | tail -1 | tr -d ' ')
+            [[ -z "${paso}" ]] && paso="(sin datos aún)"
+        else
+            paso="(sin iniciar)"
+        fi
+        completado="en progreso"
+        [[ -f "${DIR_REPO}/${nombre}/resultados/COMPLETADO" ]] && completado="COMPLETADA"
+        printf "  - %-30s paso: %-12s estado: %s\n" "${nombre}" "${paso}" "${completado}"
+    done
+}
+
+#------------------------------------------------------------------------------
+# pasos_por_vuelta
+#   Calcula cada cuántos pasos el tornillo completa una vuelta, leyendo dt y
+#   screwPeriod del archivo de entrada. Los puntos de control se alinean a
+#   este valor para que el tornillo siempre quede en su posición inicial.
+#------------------------------------------------------------------------------
+pasos_por_vuelta() {
+    local archivo="$1" dt periodo pasos
+    dt=$(grep -iE "variable[[:space:]]+dt[[:space:]]+equal" "${archivo}" | head -1 | awk '{print $NF}')
+    periodo=$(grep -iE "variable[[:space:]]+screwPeriod[[:space:]]+equal" "${archivo}" | head -1 | awk '{print $NF}')
+    if [[ -n "${dt}" && -n "${periodo}" ]]; then
+        pasos=$(awk -v p="${periodo}" -v d="${dt}" 'BEGIN{printf "%d", p/d}')
+    fi
+    if [[ -z "${pasos:-}" || "${pasos}" -lt 1 ]]; then
+        pasos="${PASOS_RESPALDO_POR_DEFECTO}"
+    fi
+    echo "${pasos}"
+}
+
+#------------------------------------------------------------------------------
+# generar_input_reanudacion
+#   Transforma el archivo de entrada original en una versión de reanudación:
+#     - sustituye la creación de la caja por la lectura del punto de control,
+#     - desactiva la inserción de partículas (ya presentes en el respaldo),
+#     - omite la fase de llenado ya completada,
+#     - continúa la simulación hasta el número total de pasos.
+#   Argumentos: archivo_original  archivo_destino  archivo_restart  pasos_respaldo
+#------------------------------------------------------------------------------
+generar_input_reanudacion() {
+    local origen="$1" destino="$2" restart="$3" pasos="$4"
+    awk -v ARCHIVO_RESTART="${restart}" -v PASOS="${pasos}" '
+        BEGIN { continuacion = 0 }
+        {
+            linea = $0
+            if (continuacion == 1) {
+                print "# [reanudacion] " linea
+                continuacion = (linea ~ /&[ \t]*$/) ? 1 : 0
+                next
+            }
+            if (linea ~ /^[ \t]*create_box/) {
+                print "read_restart " ARCHIVO_RESTART
+                next
+            }
+            if (linea ~ /particletemplate/ || linea ~ /particledistribution/ || \
+                linea ~ /mesh\/surface\/planar/ || linea ~ /insert\/stream/) {
+                print "# [reanudacion] " linea
+                if (linea ~ /&[ \t]*$/) continuacion = 1
+                next
+            }
+            if (linea ~ /^[ \t]*unfix[ \t]+ins[ \t]*$/) {
+                print "# [reanudacion] " linea
+                next
+            }
+            if (linea ~ /^[ \t]*run[ \t]+\$\{fillsteps\}/) {
+                print "# [reanudacion] " linea
+                next
+            }
+            if (linea ~ /^[ \t]*run[ \t]+\$\{dischargesteps\}/) {
+                print "variable totalsteps equal ${fillsteps}+${dischargesteps}"
+                print "restart " PASOS " restart.continuar.a restart.continuar.b"
+                print "run ${totalsteps} upto"
+                next
+            }
+            print linea
+        }
+    ' "${origen}" > "${destino}"
+}
+
+#------------------------------------------------------------------------------
+# ejecutar_simulacion
+#   Orquesta la ejecución completa de una simulación: prepara el directorio
+#   de trabajo, decide si inicia desde cero o reanuda, lanza el contenedor y
+#   archiva los resultados.
+#   Argumentos: nombre  procesos_forzados  version  reiniciar(0|1)
+#------------------------------------------------------------------------------
+ejecutar_simulacion() {
+    local nombre="$1" forzado="$2" version="$3" reiniciar="$4"
+    local motor imagen ruta archivo entrada procesos
+    local dir_run restart_a restart_b respaldo reciente pasos destino
+
+    motor=$(detectar_motor) || return 1
+
+    if [[ "${version}" == "v1" ]]; then imagen="${IMAGEN_V1}"; else imagen="${IMAGEN_V2}"; fi
+
+    ruta=$(ruta_simulacion "${nombre}")
+    if [[ -z "${ruta}" ]]; then
+        echo "ERROR: No existe la simulación '${nombre}' en el repositorio." >&2
+        echo "       Use 'correr --listar' para ver las disponibles." >&2
+        return 1
+    fi
+
+    archivo=$(find "${ruta}" -name 'in.*' -type f | head -1)
+    if [[ -z "${archivo}" ]]; then
+        echo "ERROR: La carpeta '${nombre}' no contiene un archivo de entrada in.*" >&2
+        return 1
+    fi
+    entrada=$(basename "${archivo}")
+
+    procesos=$(calcular_procesos "${forzado}")
+    pasos=$(pasos_por_vuelta "${archivo}")
+
+    dir_run="${DIR_TRABAJO}/${nombre}"
+    restart_a="${dir_run}/restart.continuar.a"
+    restart_b="${dir_run}/restart.continuar.b"
+
+    # Selecciona el punto de control más reciente y válido, salvo que se pida reiniciar.
+    reciente=""
+    if [[ "${reiniciar}" -eq 0 ]]; then
+        local candidato
+        for candidato in "${restart_a}" "${restart_b}"; do
+            [[ -s "${candidato}" ]] || continue
+            if [[ -z "${reciente}" || "${candidato}" -nt "${reciente}" ]]; then
+                reciente="${candidato}"
+            fi
+        done
+    fi
+
+    echo "=============================================================="
+    echo "  Simulación   : ${nombre} (${entrada})"
+    echo "  Motor/Imagen : ${motor} / ${imagen}"
+    echo "  Procesos     : ${procesos}"
+    echo "  Respaldo     : cada ${pasos} pasos (una vuelta del tornillo)"
+
+    if [[ -n "${reciente}" ]]; then
+        echo "  Modo         : REANUDAR desde $(basename "${reciente}")"
+        echo "=============================================================="
+        generar_input_reanudacion "${archivo}" "${dir_run}/${entrada}" \
+            "$(basename "${reciente}")" "${pasos}"
+        sed -i "s/^processors.*/processors ${procesos} 1 1/" "${dir_run}/${entrada}"
+        [[ -f "${dir_run}/massflow.csv" ]] && \
+            cp "${dir_run}/massflow.csv" "${dir_run}/massflow.$(date +%s).csv"
+    else
+        echo "  Modo         : INICIO desde cero"
+        echo "=============================================================="
+        rm -rf "${dir_run}"
+        mkdir -p "${dir_run}/post"
+        cp -r "${ruta}"/. "${dir_run}/"
+        sed -i "s/^processors.*/processors ${procesos} 1 1/" "${dir_run}/${entrada}"
+        if grep -q 'run[[:space:]]*${dischargesteps}' "${dir_run}/${entrada}"; then
+            sed -i "/run[[:space:]]*\${dischargesteps}/i restart ${pasos} restart.continuar.a restart.continuar.b" \
+                "${dir_run}/${entrada}"
+        fi
+    fi
+
+    echo "  Inicio: $(date '+%H:%M:%S %d-%m-%Y')"
+
+    "${motor}" run --rm \
+        -v "${dir_run}":/simulaciones \
+        "${imagen}" \
+        mpirun -np "${procesos}" --allow-run-as-root --bind-to none --oversubscribe \
+        lmp380 -in "/simulaciones/${entrada}" -log /simulaciones/log_sim.txt
+    local resultado=$?
+
+    destino="${ruta}/resultados"
+    mkdir -p "${destino}"
+    cp -r "${dir_run}/post" "${destino}/" 2>/dev/null
+    cp "${dir_run}"/*.csv "${destino}/" 2>/dev/null
+    cp "${dir_run}"/rt_*.txt "${destino}/" 2>/dev/null
+    cp "${dir_run}/log_sim.txt" "${destino}/" 2>/dev/null
+
+    echo "  Fin: $(date '+%H:%M:%S %d-%m-%Y')"
+    if [[ "${resultado}" -eq 0 ]]; then
+        touch "${destino}/COMPLETADO"
+        echo "  Estado: COMPLETADA. Resultados en ${destino}"
+    else
+        echo "  Estado: interrumpida. Para reanudar, ejecute de nuevo: correr ${nombre}"
+    fi
+    return "${resultado}"
+}
+
+#------------------------------------------------------------------------------
+# ejecutar_todas
+#   Recorre todas las simulaciones del repositorio y ejecuta las pendientes,
+#   omitiendo las que ya están marcadas como completadas.
+#------------------------------------------------------------------------------
+ejecutar_todas() {
+    local forzado="$1" version="$2"
+    local nombres total indice nombre ruta
+    mapfile -t nombres < <(find "${DIR_REPO}" -name 'in.*' -type f -exec dirname {} \; \
+        | sort -u | xargs -n1 basename)
+    total=${#nombres[@]}
+    indice=0
+    for nombre in "${nombres[@]}"; do
+        indice=$(( indice + 1 ))
+        ruta=$(ruta_simulacion "${nombre}")
+        if [[ -f "${ruta}/resultados/COMPLETADO" ]]; then
+            echo ">> [${indice}/${total}] ${nombre}: ya completada, se omite."
+            continue
+        fi
+        echo ""
+        echo ">> [${indice}/${total}] Ejecutando ${nombre} ..."
+        ejecutar_simulacion "${nombre}" "${forzado}" "${version}" 0
+    done
+    echo ""
+    echo "Proceso finalizado: todas las simulaciones pendientes fueron atendidas."
+}
+
+#------------------------------------------------------------------------------
+# main
+#   Punto de entrada: interpreta los argumentos y delega en la función
+#   correspondiente.
+#------------------------------------------------------------------------------
+main() {
+    local simulacion="" forzado="" version="v2"
+    local reiniciar=0 accion="ejecutar"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--ayuda|--help)
+                mostrar_ayuda; return 0 ;;
+            -l|--listar)
+                accion="listar"; shift ;;
+            -e|--estado)
+                accion="estado"; shift ;;
+            -t|--todas)
+                accion="todas"; shift ;;
+            -r|--reiniciar)
+                reiniciar=1; shift ;;
+            -n|--nucleos)
+                forzado="${2:-}"; shift 2 ;;
+            -v|--version)
+                version="${2:-v2}"; shift 2 ;;
+            -*)
+                echo "ERROR: Opción no reconocida: $1" >&2
+                echo "       Use 'correr --ayuda' para ver las opciones." >&2
+                return 1 ;;
+            *)
+                simulacion="$1"; shift ;;
+        esac
+    done
+
+    if [[ -n "${forzado}" && ! "${forzado}" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: El número de núcleos debe ser un entero positivo." >&2
+        return 1
+    fi
+    if [[ "${version}" != "v1" && "${version}" != "v2" ]]; then
+        echo "ERROR: La versión debe ser 'v1' o 'v2'." >&2
+        return 1
+    fi
+
+    case "${accion}" in
+        listar) listar_simulaciones ;;
+        estado) mostrar_estado ;;
+        todas)  ejecutar_todas "${forzado}" "${version}" ;;
+        ejecutar)
+            if [[ -z "${simulacion}" ]]; then
+                echo "ERROR: Debe indicar el nombre de una simulación." >&2
+                echo "       Ejemplo: correr MASVEL2MENCOFAZURE" >&2
+                echo "       Use 'correr --ayuda' para más información." >&2
+                return 1
+            fi
+            ejecutar_simulacion "${simulacion}" "${forzado}" "${version}" "${reiniciar}"
+            ;;
+    esac
+}
+
+main "$@"
