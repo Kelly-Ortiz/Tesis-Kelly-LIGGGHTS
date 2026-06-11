@@ -342,6 +342,50 @@ generar_input_reanudacion() {
 }
 
 #------------------------------------------------------------------------------
+# diagnosticar_error
+#   Analiza el registro de la simulación para identificar la causa probable de
+#   un fallo y devuelve una descripción breve y comprensible. Se utiliza para
+#   enriquecer los avisos cuando una simulación no termina correctamente.
+#   Argumentos: archivo_log  codigo_salida
+#------------------------------------------------------------------------------
+diagnosticar_error() {
+    local log="$1" codigo="$2" cola=""
+
+    if [[ -f "${log}" ]]; then
+        cola=$(tail -n 40 "${log}")
+    fi
+
+    # El código 137 corresponde a una terminación por falta de memoria (OOM).
+    if [[ "${codigo}" -eq 137 ]] || echo "${cola}" | grep -qiE "signal 9|killed|out of memory|cannot allocate"; then
+        echo "Falta de memoria (RAM). Sugerencia: reducir el numero de procesos con --nucleos."
+        return
+    fi
+
+    # Errores frecuentes de LIGGGHTS reportados con la palabra ERROR.
+    local linea_error
+    linea_error=$(echo "${cola}" | grep -iE "ERROR" | tail -n 1)
+    if [[ -n "${linea_error}" ]]; then
+        if echo "${linea_error}" | grep -qiE "lost atoms|particles? lost"; then
+            echo "Se perdieron particulas (posible inestabilidad numerica o dt muy grande)."
+        elif echo "${linea_error}" | grep -qiE "bond atoms missing|neighbor list overflow"; then
+            echo "Desbordamiento de la lista de vecinos o particulas fuera del dominio."
+        else
+            # Recorta el mensaje para que quepa comodo en WhatsApp.
+            echo "Error de LIGGGHTS: $(echo "${linea_error}" | cut -c1-120)"
+        fi
+        return
+    fi
+
+    # El código 130 indica interrupción manual con Ctrl+C.
+    if [[ "${codigo}" -eq 130 ]]; then
+        echo "Detenida manualmente (Ctrl+C)."
+        return
+    fi
+
+    echo "Causa no identificada (codigo ${codigo}). Revise log_sim.txt para mas detalle."
+}
+
+#------------------------------------------------------------------------------
 # ejecutar_simulacion
 #   Orquesta la ejecución completa de una simulación.
 #   Argumentos: nombre forzado version reiniciar(0|1) avisos_pct usar_whatsapp(0|1)
@@ -453,11 +497,22 @@ ejecutar_simulacion() {
         touch "${destino}/COMPLETADO"
         echo "  Estado: COMPLETADA. Resultados en ${destino}"
         [[ "${usar_whatsapp}" -eq 1 ]] && \
-            enviar_whatsapp "Simulacion *${nombre}* COMPLETADA. Resultados listos para descargar."
+            enviar_whatsapp "Simulacion *${nombre}* COMPLETADA con exito. Resultados listos para descargar."
     else
-        echo "  Estado: interrumpida. Para reanudar, ejecute de nuevo: correr ${nombre}"
-        [[ "${usar_whatsapp}" -eq 1 ]] && \
-            enviar_whatsapp "Simulacion *${nombre}* se interrumpio. Para retomar, vuelva a ejecutarla."
+        local diagnostico
+        diagnostico=$(diagnosticar_error "${dir_run}/log_sim.txt" "${resultado}")
+        # Si existe un punto de control, la simulación puede reanudarse.
+        if [[ -s "${restart_a}" || -s "${restart_b}" ]]; then
+            echo "  Estado: detenida. Causa: ${diagnostico}"
+            echo "          Hay un punto de control; para reanudar ejecute: correr ${nombre}"
+            [[ "${usar_whatsapp}" -eq 1 ]] && \
+                enviar_whatsapp "Simulacion *${nombre}* se detuvo. Causa: ${diagnostico} Hay respaldo: para retomar, vuelva a ejecutarla."
+        else
+            echo "  Estado: ERROR antes del primer respaldo. Causa: ${diagnostico}"
+            echo "          Revise ${destino}/log_sim.txt"
+            [[ "${usar_whatsapp}" -eq 1 ]] && \
+                enviar_whatsapp "Simulacion *${nombre}* FALLO. Causa: ${diagnostico} No hay respaldo aun; revise la configuracion."
+        fi
     fi
     return "${resultado}"
 }

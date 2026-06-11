@@ -424,6 +424,40 @@ function Start-MonitorProgreso {
 }
 
 #------------------------------------------------------------------------------
+# Get-DiagnosticoError
+#   Analiza el registro para identificar la causa probable de un fallo y
+#   devuelve una descripcion breve, usada para enriquecer los avisos.
+#------------------------------------------------------------------------------
+function Get-DiagnosticoError {
+    param([string]$Log, [int]$Codigo)
+
+    $cola = ''
+    if (Test-Path $Log) {
+        $cola = (Get-Content $Log -Tail 40) -join "`n"
+    }
+
+    if ($Codigo -eq 137 -or $cola -match '(?i)signal 9|killed|out of memory|cannot allocate') {
+        return 'Falta de memoria (RAM). Sugerencia: reducir el numero de procesos con -Nucleos.'
+    }
+
+    $lineaError = ($cola -split "`n" | Select-String -Pattern '(?i)ERROR' | Select-Object -Last 1)
+    if ($lineaError) {
+        $texto = $lineaError.ToString()
+        if ($texto -match '(?i)lost atoms|particles? lost') {
+            return 'Se perdieron particulas (posible inestabilidad numerica o dt muy grande).'
+        } elseif ($texto -match '(?i)bond atoms missing|neighbor list overflow') {
+            return 'Desbordamiento de la lista de vecinos o particulas fuera del dominio.'
+        } else {
+            $corto = if ($texto.Length -gt 120) { $texto.Substring(0, 120) } else { $texto }
+            return "Error de LIGGGHTS: $corto"
+        }
+    }
+
+    if ($Codigo -eq 130) { return 'Detenida manualmente (Ctrl+C).' }
+    return "Causa no identificada (codigo $Codigo). Revise log_sim.txt para mas detalle."
+}
+
+#------------------------------------------------------------------------------
 # Invoke-Simulacion
 #------------------------------------------------------------------------------
 function Invoke-Simulacion {
@@ -546,10 +580,20 @@ function Invoke-Simulacion {
     if ($resultado -eq 0) {
         New-Item -ItemType File -Path (Join-Path $destino 'COMPLETADO') -Force | Out-Null
         Write-Host "  Estado: COMPLETADA. Resultados en $destino"
-        if ($whatsappActivo) { Send-Whatsapp -Mensaje "Simulacion *$Nombre* COMPLETADA. Resultados listos para descargar." }
+        if ($whatsappActivo) { Send-Whatsapp -Mensaje "Simulacion *$Nombre* COMPLETADA con exito. Resultados listos para descargar." }
     } else {
-        Write-Host "  Estado: interrumpida. Para reanudar, ejecute de nuevo: .\correr.ps1 $Nombre"
-        if ($whatsappActivo) { Send-Whatsapp -Mensaje "Simulacion *$Nombre* se interrumpio. Para retomar, vuelva a ejecutarla." }
+        $diagnostico = Get-DiagnosticoError -Log (Join-Path $dirRun 'log_sim.txt') -Codigo $resultado
+        $hayRespaldo = ((Test-Path $restartA) -and ((Get-Item $restartA).Length -gt 0)) -or `
+                       ((Test-Path $restartB) -and ((Get-Item $restartB).Length -gt 0))
+        if ($hayRespaldo) {
+            Write-Host "  Estado: detenida. Causa: $diagnostico"
+            Write-Host "          Hay un punto de control; para reanudar ejecute: .\correr.ps1 $Nombre"
+            if ($whatsappActivo) { Send-Whatsapp -Mensaje "Simulacion *$Nombre* se detuvo. Causa: $diagnostico Hay respaldo: para retomar, vuelva a ejecutarla." }
+        } else {
+            Write-Host "  Estado: ERROR antes del primer respaldo. Causa: $diagnostico"
+            Write-Host "          Revise $destino\log_sim.txt"
+            if ($whatsappActivo) { Send-Whatsapp -Mensaje "Simulacion *$Nombre* FALLO. Causa: $diagnostico No hay respaldo aun; revise la configuracion." }
+        }
     }
     return $resultado
 }
