@@ -86,6 +86,40 @@ if ! grep -qs 'HOME/bin' "${HOME}/.bashrc"; then
 fi
 export PATH="${HOME}/bin:${PATH}"
 
+#------------------------------------------------------------------------------
+# Configuración opcional de avisos por WhatsApp (servicio CallMeBot)
+#------------------------------------------------------------------------------
+readonly ARCHIVO_CONFIG_WHATSAPP="${HOME}/.liggghts_whatsapp.conf"
+
+echo ""
+echo "Avisos por WhatsApp (opcional)"
+echo "------------------------------"
+if [[ -f "${ARCHIVO_CONFIG_WHATSAPP}" ]]; then
+    echo "Ya existe una configuración de WhatsApp; se conserva la actual."
+else
+    echo "Para recibir avisos del avance de las simulaciones por WhatsApp:"
+    echo "  1. Guarde en sus contactos el número  +34 611 08 28 80"
+    echo "  2. Envíele por WhatsApp el mensaje exacto:"
+    echo "        I allow callmebot to send me messages"
+    echo "  3. Recibirá una respuesta con su APIKEY (un número)."
+    echo ""
+    read -r -p "Número de WhatsApp con código de país (Enter para omitir): " ws_telefono
+    if [[ -n "${ws_telefono}" ]]; then
+        read -r -p "APIKEY recibido de CallMeBot: " ws_apikey
+        if [[ -n "${ws_apikey}" ]]; then
+            printf 'WHATSAPP_PHONE=%s\nWHATSAPP_APIKEY=%s\n' "${ws_telefono}" "${ws_apikey}" \
+                > "${ARCHIVO_CONFIG_WHATSAPP}"
+            chmod 600 "${ARCHIVO_CONFIG_WHATSAPP}"
+            echo "Configuración guardada. Pruébela luego con:  correr --probar-whatsapp"
+        else
+            echo "No se ingresó un APIKEY; los avisos quedan desactivados."
+        fi
+    else
+        echo "Avisos por WhatsApp omitidos. Puede activarlos después editando"
+        echo "el archivo ${ARCHIVO_CONFIG_WHATSAPP}."
+    fi
+fi
+
 cat <<'FIN'
 
 ==============================================================================

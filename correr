@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #==============================================================================
 # correr — Ejecutor de simulaciones LIGGGHTS con respaldo automático
+#          y notificaciones de avance por WhatsApp
 #==============================================================================
 #
 # DESCRIPCIÓN
@@ -8,16 +9,19 @@
 #   Detecta automáticamente los recursos de la máquina (núcleos y memoria),
 #   ajusta la descomposición del dominio y escribe puntos de control
 #   periódicos que permiten reanudar la simulación tras cualquier
-#   interrupción (reinicio del equipo, falta de memoria o pausa manual)
-#   sin introducir artefactos en la física del tornillo giratorio.
+#   interrupción sin introducir artefactos en la física del tornillo
+#   giratorio. Opcionalmente envía avisos de avance por WhatsApp.
 #
 # USO
 #   correr <simulacion> [opciones]
 #   correr --listar
-#   correr --todas
 #   correr --ayuda
 #
-# Consulte la ayuda integrada con:  correr --ayuda
+# NOTIFICACIONES POR WHATSAPP (opcional)
+#   Si existe el archivo ~/.liggghts_whatsapp.conf con las variables
+#   WHATSAPP_PHONE y WHATSAPP_APIKEY, el programa envía avisos de inicio,
+#   avance y finalización. El servicio utilizado es CallMeBot (gratuito,
+#   uso personal). La activación se describe en 'correr --ayuda'.
 #==============================================================================
 
 set -uo pipefail
@@ -31,6 +35,17 @@ readonly GB_RESERVADOS_POR_PROCESO=5
 readonly IMAGEN_V1="cesarsant2000/liggghts-motor"
 readonly IMAGEN_V2="cesarsant2000/liggghts-motor-v2"
 readonly PASOS_RESPALDO_POR_DEFECTO=1000000
+readonly ARCHIVO_CONFIG_WHATSAPP="${HOME}/.liggghts_whatsapp.conf"
+readonly URL_WHATSAPP="https://api.callmebot.com/whatsapp.php"
+readonly SEGUNDOS_ENTRE_REVISIONES=60
+
+# Variables de WhatsApp (se cargan del archivo de configuración si existe).
+WHATSAPP_PHONE=""
+WHATSAPP_APIKEY=""
+if [[ -f "${ARCHIVO_CONFIG_WHATSAPP}" ]]; then
+    # shellcheck disable=SC1090
+    source "${ARCHIVO_CONFIG_WHATSAPP}"
+fi
 
 #------------------------------------------------------------------------------
 # mostrar_ayuda
@@ -44,8 +59,9 @@ mostrar_ayuda() {
 
 QUÉ HACE
   Corre una simulación del repositorio de la tesis. Elige automáticamente
-  cuántos procesos usar según la máquina y guarda puntos de control para
-  poder retomar la simulación si se interrumpe.
+  cuántos procesos usar segun la maquina, guarda puntos de control para
+  poder retomar la simulacion si se interrumpe y, de forma opcional, envia
+  avisos de avance por WhatsApp.
 
 FORMA DE USO
   correr <simulacion> [opciones]
@@ -60,8 +76,11 @@ EJEMPLOS
   correr MASVEL2MENCOFAZURE --version v1
         Corre usando el contenedor v1 en lugar del v2 (predeterminado).
 
-  correr MASVEL2MENCOFAZURE --nucleos 8 --version v2
-        Combina ambas opciones.
+  correr MASVEL2MENCOFAZURE --avisos 25
+        Envía un aviso de WhatsApp cada 25% de avance (predeterminado: 10%).
+
+  correr MASVEL2MENCOFAZURE --sin-whatsapp
+        Ejecuta sin enviar avisos de WhatsApp.
 
   correr MASVEL2MENCOFAZURE --reiniciar
         Ignora cualquier punto de control y empieza desde cero.
@@ -70,10 +89,15 @@ OPCIONES
   -n, --nucleos N     Número de procesos a utilizar.
                       Si se omite, se calcula según CPU y memoria.
   -v, --version V     Versión del contenedor: v1 o v2. Predeterminado: v2.
+  -a, --avisos P      Enviar un aviso de WhatsApp cada P por ciento de avance.
+                      Predeterminado: 10.
+      --sin-whatsapp  Desactiva los avisos de WhatsApp para esta ejecución.
   -r, --reiniciar     Fuerza el inicio desde cero (descarta el respaldo).
   -l, --listar        Muestra las simulaciones disponibles y termina.
   -e, --estado        Muestra el avance de las simulaciones y termina.
   -t, --todas         Ejecuta en orden todas las simulaciones pendientes.
+  -p, --probar-whatsapp
+                      Envía un mensaje de prueba por WhatsApp y termina.
   -h, --ayuda         Muestra esta ayuda y termina.
 
 CÓMO TRABAJAR SIN PERDER LA SESIÓN
@@ -88,6 +112,17 @@ QUÉ HACER SI SE INTERRUMPE
   Vuelva a ejecutar exactamente el mismo comando. El programa detecta el
   último punto de control y reanuda la simulación automáticamente.
 
+CÓMO ACTIVAR LOS AVISOS POR WHATSAPP (una sola vez)
+  1. Guarde en sus contactos el número  +34 611 08 28 80
+  2. Envíele por WhatsApp el mensaje exacto:
+        I allow callmebot to send me messages
+  3. Recibirá una respuesta con su APIKEY (un número).
+  4. Cree el archivo  ~/.liggghts_whatsapp.conf  con dos líneas:
+        WHATSAPP_PHONE=+593XXXXXXXXX
+        WHATSAPP_APIKEY=su_apikey
+  5. Compruebe con:  correr --probar-whatsapp
+  El servicio es CallMeBot, gratuito y para uso personal.
+
 DÓNDE QUEDAN LOS RESULTADOS
   ~/repo/<simulacion>/resultados/
 
@@ -96,9 +131,25 @@ AYUDA
 }
 
 #------------------------------------------------------------------------------
+# enviar_whatsapp
+#   Envía un mensaje de WhatsApp mediante CallMeBot. Es una operación de mejor
+#   esfuerzo: cualquier fallo se ignora para no interrumpir la simulación.
+#   No hace nada si no hay credenciales configuradas o si están desactivadas.
+#------------------------------------------------------------------------------
+enviar_whatsapp() {
+    local mensaje="$1"
+    [[ -z "${WHATSAPP_PHONE}" || -z "${WHATSAPP_APIKEY}" ]] && return 0
+    curl -s -G "${URL_WHATSAPP}" \
+        --max-time 15 \
+        --data-urlencode "phone=${WHATSAPP_PHONE}" \
+        --data-urlencode "text=${mensaje}" \
+        --data-urlencode "apikey=${WHATSAPP_APIKEY}" \
+        >/dev/null 2>&1 || true
+}
+
+#------------------------------------------------------------------------------
 # detectar_motor
 #   Determina si se usará Docker o Podman como motor de contenedores.
-#   Imprime el nombre del motor disponible o termina con error.
 #------------------------------------------------------------------------------
 detectar_motor() {
     if docker ps >/dev/null 2>&1; then
@@ -128,24 +179,20 @@ detectar_nucleos_fisicos() {
 
 #------------------------------------------------------------------------------
 # calcular_procesos
-#   Calcula el número de procesos a usar combinando los núcleos físicos
-#   disponibles y un límite por memoria para evitar agotar la RAM.
-#   Argumento opcional: número de procesos forzado por la usuaria.
+#   Calcula el número de procesos combinando núcleos físicos y un límite por
+#   memoria. Acepta un valor forzado opcional.
 #------------------------------------------------------------------------------
 calcular_procesos() {
     local forzado="${1:-}"
     local fisicos ram_mb ram_gb tope procesos
-
     fisicos=$(detectar_nucleos_fisicos)
     ram_mb=$(free -m | awk '/^Mem:/{print $2}')
     ram_gb=$(( ram_mb / 1024 ))
     tope=$(( ram_gb / GB_RESERVADOS_POR_PROCESO ))
     [[ "${tope}" -lt 1 ]] && tope=1
-
     procesos="${fisicos}"
     [[ "${tope}" -lt "${procesos}" ]] && procesos="${tope}"
     [[ -n "${forzado}" ]] && procesos="${forzado}"
-
     echo "${procesos}"
 }
 
@@ -159,7 +206,7 @@ ruta_simulacion() {
 
 #------------------------------------------------------------------------------
 # listar_simulaciones
-#   Muestra el nombre de todas las simulaciones disponibles en el repositorio.
+#   Muestra el nombre de todas las simulaciones disponibles.
 #------------------------------------------------------------------------------
 listar_simulaciones() {
     echo "Simulaciones disponibles en el repositorio:"
@@ -169,7 +216,7 @@ listar_simulaciones() {
 
 #------------------------------------------------------------------------------
 # mostrar_estado
-#   Resume el avance de cada simulación que tenga trabajo en curso o resultados.
+#   Resume el avance de cada simulación con trabajo en curso o resultados.
 #------------------------------------------------------------------------------
 mostrar_estado() {
     echo "Estado de las simulaciones:"
@@ -178,7 +225,7 @@ mostrar_estado() {
         [[ -d "${dir}" ]] || continue
         nombre=$(basename "${dir}")
         if [[ -f "${dir}/log_sim.txt" ]]; then
-            paso=$(grep -Eo '^[[:space:]]*[0-9]+' "${dir}/log_sim.txt" | tail -1 | tr -d ' ')
+            paso=$(awk 'NF>0 && $1 ~ /^[0-9]+$/ {s=$1} END{print s}' "${dir}/log_sim.txt")
             [[ -z "${paso}" ]] && paso="(sin datos aún)"
         else
             paso="(sin iniciar)"
@@ -191,9 +238,8 @@ mostrar_estado() {
 
 #------------------------------------------------------------------------------
 # pasos_por_vuelta
-#   Calcula cada cuántos pasos el tornillo completa una vuelta, leyendo dt y
-#   screwPeriod del archivo de entrada. Los puntos de control se alinean a
-#   este valor para que el tornillo siempre quede en su posición inicial.
+#   Calcula cada cuántos pasos el tornillo completa una vuelta (screwPeriod/dt)
+#   para alinear los puntos de control a su posición inicial.
 #------------------------------------------------------------------------------
 pasos_por_vuelta() {
     local archivo="$1" dt periodo pasos
@@ -209,12 +255,50 @@ pasos_por_vuelta() {
 }
 
 #------------------------------------------------------------------------------
+# calcular_pasos_totales
+#   Estima el número total de pasos de la simulación a partir de los tiempos
+#   de llenado y descarga y del paso de tiempo. Devuelve 0 si no puede leerlos.
+#------------------------------------------------------------------------------
+calcular_pasos_totales() {
+    local archivo="$1" filltime dischargetime dt total
+    filltime=$(grep -iE "variable[[:space:]]+filltime[[:space:]]+equal" "${archivo}" | head -1 | awk '{print $NF}')
+    dischargetime=$(grep -iE "variable[[:space:]]+dischargetime[[:space:]]+equal" "${archivo}" | head -1 | awk '{print $NF}')
+    dt=$(grep -iE "variable[[:space:]]+dt[[:space:]]+equal" "${archivo}" | head -1 | awk '{print $NF}')
+    if [[ -n "${filltime}" && -n "${dischargetime}" && -n "${dt}" ]]; then
+        total=$(awk -v a="${filltime}" -v b="${dischargetime}" -v d="${dt}" 'BEGIN{printf "%d",(a+b)/d}')
+        echo "${total:-0}"
+    else
+        echo "0"
+    fi
+}
+
+#------------------------------------------------------------------------------
+# monitor_progreso
+#   Proceso en segundo plano que vigila el archivo de registro y envía un aviso
+#   de WhatsApp cada vez que el avance cruza un nuevo múltiplo del porcentaje
+#   indicado. Termina cuando el proceso principal lo cancela.
+#   Argumentos: archivo_log  pasos_totales  nombre  intervalo_porcentaje
+#------------------------------------------------------------------------------
+monitor_progreso() {
+    local log="$1" total="$2" nombre="$3" intervalo="$4"
+    local ultimo_hito=0 paso pct
+    [[ "${total}" -lt 1 ]] && return 0
+    while true; do
+        sleep "${SEGUNDOS_ENTRE_REVISIONES}"
+        [[ -f "${log}" ]] || continue
+        paso=$(awk 'NF>0 && $1 ~ /^[0-9]+$/ {s=$1} END{print s}' "${log}")
+        [[ -z "${paso}" ]] && continue
+        pct=$(( paso * 100 / total ))
+        if [[ "${pct}" -ge $(( ultimo_hito + intervalo )) ]]; then
+            ultimo_hito=$(( (pct / intervalo) * intervalo ))
+            enviar_whatsapp "Simulacion *${nombre}*: ${pct}% completado (paso ${paso} de ${total})."
+        fi
+    done
+}
+
+#------------------------------------------------------------------------------
 # generar_input_reanudacion
-#   Transforma el archivo de entrada original en una versión de reanudación:
-#     - sustituye la creación de la caja por la lectura del punto de control,
-#     - desactiva la inserción de partículas (ya presentes en el respaldo),
-#     - omite la fase de llenado ya completada,
-#     - continúa la simulación hasta el número total de pasos.
+#   Transforma el archivo de entrada original en una versión de reanudación.
 #   Argumentos: archivo_original  archivo_destino  archivo_restart  pasos_respaldo
 #------------------------------------------------------------------------------
 generar_input_reanudacion() {
@@ -259,27 +343,22 @@ generar_input_reanudacion() {
 
 #------------------------------------------------------------------------------
 # ejecutar_simulacion
-#   Orquesta la ejecución completa de una simulación: prepara el directorio
-#   de trabajo, decide si inicia desde cero o reanuda, lanza el contenedor y
-#   archiva los resultados.
-#   Argumentos: nombre  procesos_forzados  version  reiniciar(0|1)
+#   Orquesta la ejecución completa de una simulación.
+#   Argumentos: nombre forzado version reiniciar(0|1) avisos_pct usar_whatsapp(0|1)
 #------------------------------------------------------------------------------
 ejecutar_simulacion() {
-    local nombre="$1" forzado="$2" version="$3" reiniciar="$4"
+    local nombre="$1" forzado="$2" version="$3" reiniciar="$4" avisos="$5" usar_whatsapp="$6"
     local motor imagen ruta archivo entrada procesos
-    local dir_run restart_a restart_b respaldo reciente pasos destino
+    local dir_run restart_a restart_b reciente pasos destino total monitor_pid
 
     motor=$(detectar_motor) || return 1
-
     if [[ "${version}" == "v1" ]]; then imagen="${IMAGEN_V1}"; else imagen="${IMAGEN_V2}"; fi
 
     ruta=$(ruta_simulacion "${nombre}")
     if [[ -z "${ruta}" ]]; then
-        echo "ERROR: No existe la simulación '${nombre}' en el repositorio." >&2
-        echo "       Use 'correr --listar' para ver las disponibles." >&2
+        echo "ERROR: No existe la simulación '${nombre}'. Use 'correr --listar'." >&2
         return 1
     fi
-
     archivo=$(find "${ruta}" -name 'in.*' -type f | head -1)
     if [[ -z "${archivo}" ]]; then
         echo "ERROR: La carpeta '${nombre}' no contiene un archivo de entrada in.*" >&2
@@ -289,12 +368,12 @@ ejecutar_simulacion() {
 
     procesos=$(calcular_procesos "${forzado}")
     pasos=$(pasos_por_vuelta "${archivo}")
+    total=$(calcular_pasos_totales "${archivo}")
 
     dir_run="${DIR_TRABAJO}/${nombre}"
     restart_a="${dir_run}/restart.continuar.a"
     restart_b="${dir_run}/restart.continuar.b"
 
-    # Selecciona el punto de control más reciente y válido, salvo que se pida reiniciar.
     reciente=""
     if [[ "${reiniciar}" -eq 0 ]]; then
         local candidato
@@ -311,6 +390,12 @@ ejecutar_simulacion() {
     echo "  Motor/Imagen : ${motor} / ${imagen}"
     echo "  Procesos     : ${procesos}"
     echo "  Respaldo     : cada ${pasos} pasos (una vuelta del tornillo)"
+    echo "  Pasos totales: ${total}"
+    if [[ "${usar_whatsapp}" -eq 1 && -n "${WHATSAPP_PHONE}" ]]; then
+        echo "  WhatsApp     : avisos cada ${avisos}%"
+    else
+        echo "  WhatsApp     : desactivado"
+    fi
 
     if [[ -n "${reciente}" ]]; then
         echo "  Modo         : REANUDAR desde $(basename "${reciente}")"
@@ -335,12 +420,26 @@ ejecutar_simulacion() {
 
     echo "  Inicio: $(date '+%H:%M:%S %d-%m-%Y')"
 
+    # Inicia el monitor de avance en segundo plano si los avisos están activos.
+    monitor_pid=0
+    if [[ "${usar_whatsapp}" -eq 1 && -n "${WHATSAPP_PHONE}" && "${total}" -ge 1 ]]; then
+        enviar_whatsapp "Simulacion *${nombre}* iniciada con ${procesos} procesos. Avisos cada ${avisos}%."
+        monitor_progreso "${dir_run}/log_sim.txt" "${total}" "${nombre}" "${avisos}" &
+        monitor_pid=$!
+    fi
+
     "${motor}" run --rm \
         -v "${dir_run}":/simulaciones \
         "${imagen}" \
         mpirun -np "${procesos}" --allow-run-as-root --bind-to none --oversubscribe \
         lmp380 -in "/simulaciones/${entrada}" -log /simulaciones/log_sim.txt
     local resultado=$?
+
+    # Detiene el monitor de avance.
+    if [[ "${monitor_pid}" -ne 0 ]]; then
+        kill "${monitor_pid}" >/dev/null 2>&1 || true
+        wait "${monitor_pid}" 2>/dev/null || true
+    fi
 
     destino="${ruta}/resultados"
     mkdir -p "${destino}"
@@ -353,19 +452,22 @@ ejecutar_simulacion() {
     if [[ "${resultado}" -eq 0 ]]; then
         touch "${destino}/COMPLETADO"
         echo "  Estado: COMPLETADA. Resultados en ${destino}"
+        [[ "${usar_whatsapp}" -eq 1 ]] && \
+            enviar_whatsapp "Simulacion *${nombre}* COMPLETADA. Resultados listos para descargar."
     else
         echo "  Estado: interrumpida. Para reanudar, ejecute de nuevo: correr ${nombre}"
+        [[ "${usar_whatsapp}" -eq 1 ]] && \
+            enviar_whatsapp "Simulacion *${nombre}* se interrumpio. Para retomar, vuelva a ejecutarla."
     fi
     return "${resultado}"
 }
 
 #------------------------------------------------------------------------------
 # ejecutar_todas
-#   Recorre todas las simulaciones del repositorio y ejecuta las pendientes,
-#   omitiendo las que ya están marcadas como completadas.
+#   Ejecuta todas las simulaciones pendientes, omitiendo las completadas.
 #------------------------------------------------------------------------------
 ejecutar_todas() {
-    local forzado="$1" version="$2"
+    local forzado="$1" version="$2" avisos="$3" usar_whatsapp="$4"
     local nombres total indice nombre ruta
     mapfile -t nombres < <(find "${DIR_REPO}" -name 'in.*' -type f -exec dirname {} \; \
         | sort -u | xargs -n1 basename)
@@ -380,48 +482,64 @@ ejecutar_todas() {
         fi
         echo ""
         echo ">> [${indice}/${total}] Ejecutando ${nombre} ..."
-        ejecutar_simulacion "${nombre}" "${forzado}" "${version}" 0
+        ejecutar_simulacion "${nombre}" "${forzado}" "${version}" 0 "${avisos}" "${usar_whatsapp}"
     done
     echo ""
     echo "Proceso finalizado: todas las simulaciones pendientes fueron atendidas."
+    [[ "${usar_whatsapp}" -eq 1 ]] && \
+        enviar_whatsapp "Lote de simulaciones finalizado. Todas las pendientes fueron atendidas."
+}
+
+#------------------------------------------------------------------------------
+# probar_whatsapp
+#   Envía un mensaje de prueba para verificar la configuración de WhatsApp.
+#------------------------------------------------------------------------------
+probar_whatsapp() {
+    if [[ -z "${WHATSAPP_PHONE}" || -z "${WHATSAPP_APIKEY}" ]]; then
+        echo "WhatsApp no está configurado." >&2
+        echo "Cree el archivo ${ARCHIVO_CONFIG_WHATSAPP} con WHATSAPP_PHONE y WHATSAPP_APIKEY." >&2
+        echo "Vea 'correr --ayuda' para los pasos de activación." >&2
+        return 1
+    fi
+    echo "Enviando mensaje de prueba a ${WHATSAPP_PHONE}..."
+    enviar_whatsapp "Mensaje de prueba: la configuracion de avisos LIGGGHTS funciona correctamente."
+    echo "Si no llega en un minuto, revise el número y el apikey en ${ARCHIVO_CONFIG_WHATSAPP}."
 }
 
 #------------------------------------------------------------------------------
 # main
-#   Punto de entrada: interpreta los argumentos y delega en la función
-#   correspondiente.
+#   Punto de entrada: interpreta los argumentos y delega.
 #------------------------------------------------------------------------------
 main() {
     local simulacion="" forzado="" version="v2"
-    local reiniciar=0 accion="ejecutar"
+    local reiniciar=0 accion="ejecutar" avisos=10 usar_whatsapp=1
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -h|--ayuda|--help)
-                mostrar_ayuda; return 0 ;;
-            -l|--listar)
-                accion="listar"; shift ;;
-            -e|--estado)
-                accion="estado"; shift ;;
-            -t|--todas)
-                accion="todas"; shift ;;
-            -r|--reiniciar)
-                reiniciar=1; shift ;;
-            -n|--nucleos)
-                forzado="${2:-}"; shift 2 ;;
-            -v|--version)
-                version="${2:-v2}"; shift 2 ;;
+            -h|--ayuda|--help) accion="ayuda"; shift ;;
+            -l|--listar)       accion="listar"; shift ;;
+            -e|--estado)       accion="estado"; shift ;;
+            -t|--todas)        accion="todas"; shift ;;
+            -p|--probar-whatsapp) accion="probar"; shift ;;
+            -r|--reiniciar)    reiniciar=1; shift ;;
+            --sin-whatsapp)    usar_whatsapp=0; shift ;;
+            -n|--nucleos)      forzado="${2:-}"; shift 2 ;;
+            -v|--version)      version="${2:-v2}"; shift 2 ;;
+            -a|--avisos)       avisos="${2:-10}"; shift 2 ;;
             -*)
                 echo "ERROR: Opción no reconocida: $1" >&2
                 echo "       Use 'correr --ayuda' para ver las opciones." >&2
                 return 1 ;;
-            *)
-                simulacion="$1"; shift ;;
+            *) simulacion="$1"; shift ;;
         esac
     done
 
     if [[ -n "${forzado}" && ! "${forzado}" =~ ^[0-9]+$ ]]; then
         echo "ERROR: El número de núcleos debe ser un entero positivo." >&2
+        return 1
+    fi
+    if [[ ! "${avisos}" =~ ^[0-9]+$ || "${avisos}" -lt 1 || "${avisos}" -gt 100 ]]; then
+        echo "ERROR: El porcentaje de avisos debe ser un entero entre 1 y 100." >&2
         return 1
     fi
     if [[ "${version}" != "v1" && "${version}" != "v2" ]]; then
@@ -430,9 +548,11 @@ main() {
     fi
 
     case "${accion}" in
+        ayuda)  mostrar_ayuda ;;
         listar) listar_simulaciones ;;
         estado) mostrar_estado ;;
-        todas)  ejecutar_todas "${forzado}" "${version}" ;;
+        probar) probar_whatsapp ;;
+        todas)  ejecutar_todas "${forzado}" "${version}" "${avisos}" "${usar_whatsapp}" ;;
         ejecutar)
             if [[ -z "${simulacion}" ]]; then
                 echo "ERROR: Debe indicar el nombre de una simulación." >&2
@@ -440,7 +560,8 @@ main() {
                 echo "       Use 'correr --ayuda' para más información." >&2
                 return 1
             fi
-            ejecutar_simulacion "${simulacion}" "${forzado}" "${version}" "${reiniciar}"
+            ejecutar_simulacion "${simulacion}" "${forzado}" "${version}" \
+                "${reiniciar}" "${avisos}" "${usar_whatsapp}"
             ;;
     esac
 }

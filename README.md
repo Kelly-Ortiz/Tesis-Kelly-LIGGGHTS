@@ -1,7 +1,8 @@
 # Simulaciones LIGGGHTS — Guía de uso
 
 Sistema para ejecutar las simulaciones de la tesis en Linux o Windows, con
-respaldo automático para reanudar tras cualquier interrupción.
+respaldo automático para reanudar tras cualquier interrupción y avisos de
+avance por WhatsApp.
 
 ## Archivos del sistema
 
@@ -27,6 +28,7 @@ git clone https://github.com/Kelly-Ortiz/Tesis-Kelly-LIGGGHTS.git ~/repo
 bash ~/repo/configurar.sh
 source ~/.bashrc
 ```
+Durante la instalación se ofrece configurar los avisos por WhatsApp.
 
 ### Ejecución
 ```
@@ -44,8 +46,11 @@ correr --estado                             Muestra el avance
 correr NOMBRE                               Ejecuta una simulación
 correr NOMBRE --nucleos 4                   Fuerza 4 procesos
 correr NOMBRE --version v1                  Usa el contenedor v1
+correr NOMBRE --avisos 25                   Aviso de WhatsApp cada 25%
+correr NOMBRE --sin-whatsapp                Ejecuta sin avisos
 correr NOMBRE --reiniciar                   Empieza desde cero
 correr --todas                              Ejecuta todas las pendientes
+correr --probar-whatsapp                    Envía un mensaje de prueba
 ```
 
 ---
@@ -58,7 +63,6 @@ Si PowerShell bloquea la ejecución de scripts, abra PowerShell una vez y ejecut
 ```
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
-
 Luego, dentro de la carpeta del repositorio:
 ```
 .\configurar.ps1
@@ -77,9 +81,42 @@ Luego, dentro de la carpeta del repositorio:
 .\correr.ps1 NOMBRE                          Ejecuta una simulación
 .\correr.ps1 NOMBRE -Nucleos 4               Fuerza 4 procesos
 .\correr.ps1 NOMBRE -Version v1              Usa el contenedor v1
+.\correr.ps1 NOMBRE -Avisos 25               Aviso de WhatsApp cada 25%
+.\correr.ps1 NOMBRE -SinWhatsapp             Ejecuta sin avisos
 .\correr.ps1 NOMBRE -Reiniciar               Empieza desde cero
 .\correr.ps1 -Todas                          Ejecuta todas las pendientes
+.\correr.ps1 -ProbarWhatsapp                 Envía un mensaje de prueba
 ```
+
+---
+
+## Avisos por WhatsApp (opcional)
+
+El sistema puede enviar mensajes de WhatsApp al iniciar una simulación, cada
+cierto porcentaje de avance, y al finalizar o interrumpirse. Usa el servicio
+gratuito **CallMeBot** (uso personal).
+
+### Activación (una sola vez)
+1. Guarde en sus contactos el número **+34 611 08 28 80**.
+2. Envíele por WhatsApp el mensaje exacto:
+   `I allow callmebot to send me messages`
+3. Recibirá una respuesta con su **APIKEY**.
+4. El instalador (`configurar.sh` o `configurar.ps1`) le pedirá el número y el
+   APIKEY y los guardará. También puede crear el archivo manualmente:
+   - Linux: `~/.liggghts_whatsapp.conf`
+   - Windows: `%USERPROFILE%\.liggghts_whatsapp.conf`
+
+   Con dos líneas:
+   ```
+   WHATSAPP_PHONE=+593XXXXXXXXX
+   WHATSAPP_APIKEY=su_apikey
+   ```
+5. Compruebe el envío:
+   - Linux: `correr --probar-whatsapp`
+   - Windows: `.\correr.ps1 -ProbarWhatsapp`
+
+Las credenciales se guardan solo en el equipo (no en el repositorio).
+Si no se configura, las simulaciones corren normalmente y sin avisos.
 
 ---
 
@@ -93,9 +130,8 @@ Si la simulación se interrumpe por cualquier causa (reinicio del equipo, falta
 de memoria o pausa manual), basta con **ejecutar de nuevo exactamente el mismo
 comando**: el sistema detecta el último punto de control y reanuda la
 simulación de forma automática. El programa indica en pantalla
-`Modo: REANUDAR` cuando lo hace.
-
-Como máximo se pierde una vuelta de tornillo de cálculo.
+`Modo: REANUDAR` cuando lo hace. Como máximo se pierde una vuelta de tornillo
+de cálculo.
 
 ---
 
