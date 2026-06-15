@@ -4,9 +4,13 @@
 
 .DESCRIPTION
     Deja el equipo Windows listo para ejecutar simulaciones con Docker Desktop.
-    Verifica que Docker este disponible, descarga los contenedores necesarios,
-    actualiza el repositorio y, de forma opcional, configura los avisos por
-    WhatsApp. Debe ejecutarse desde la carpeta del repositorio.
+    Se ejecuta DESDE DENTRO del repositorio ya clonado. Verifica Docker, descarga
+    los contenedores y, opcionalmente, configura los avisos por WhatsApp. No clona
+    ni modifica el repositorio: respeta la copia y la rama actuales.
+
+    En Windows el comando se ejecuta directamente desde la carpeta del repositorio
+    (.\correr.ps1), por lo que siempre corresponde a la rama activa sin pasos
+    adicionales de instalacion.
 
 .NOTES
     Requisitos previos:
@@ -23,17 +27,21 @@
 [CmdletBinding()]
 param()
 
-$RepoUrl  = 'https://github.com/Kelly-Ortiz/Tesis-Kelly-LIGGGHTS.git'
 $ImagenV1 = 'cesarsant2000/liggghts-motor'
 $ImagenV2 = 'cesarsant2000/liggghts-motor-v2'
 $ArchivoConfigWhatsapp = Join-Path $env:USERPROFILE '.liggghts_whatsapp.conf'
 
 Write-Host 'Preparando el entorno de simulaciones LIGGGHTS (Windows)...'
 
-#------------------------------------------------------------------------------
-# Verificacion de Docker Desktop
-#------------------------------------------------------------------------------
-Write-Host '[1/4] Verificando Docker Desktop...'
+# Ubicar la raiz del repositorio a partir del directorio actual.
+$DirRepo = (git rev-parse --show-toplevel 2>$null)
+if ($LASTEXITCODE -ne 0 -or -not $DirRepo) {
+    Write-Error 'Ejecute este script desde dentro de la carpeta del repositorio.'
+    exit 1
+}
+Write-Host "Repositorio detectado: $($DirRepo.Trim())"
+
+Write-Host '[1/3] Verificando Docker Desktop...'
 docker ps *> $null
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'Docker Desktop no esta disponible o no esta en ejecucion.'
@@ -42,37 +50,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host '      Docker Desktop esta activo.'
 
-#------------------------------------------------------------------------------
-# Descarga de los contenedores
-#------------------------------------------------------------------------------
-Write-Host '[2/4] Descargando los contenedores de simulacion...'
+Write-Host '[2/3] Descargando los contenedores de simulacion...'
 docker pull $ImagenV1
 docker pull $ImagenV2
 
-#------------------------------------------------------------------------------
-# Actualizacion del repositorio
-#------------------------------------------------------------------------------
-Write-Host '[3/4] Verificando el repositorio...'
-if (Test-Path (Join-Path $PSScriptRoot '.git')) {
-    git -C $PSScriptRoot pull
-} else {
-    Write-Host '      Este script no se esta ejecutando dentro del repositorio.'
-    Write-Host "      Si aun no lo tiene, clonelo con:  git clone $RepoUrl"
-}
-
-#------------------------------------------------------------------------------
-# Configuracion opcional de avisos por WhatsApp
-#------------------------------------------------------------------------------
-Write-Host '[4/4] Avisos por WhatsApp (opcional)...'
+Write-Host '[3/3] Avisos por WhatsApp (opcional)...'
 if (Test-Path $ArchivoConfigWhatsapp) {
-    Write-Host '      Ya existe una configuracion de WhatsApp; se conserva la actual.'
+    Write-Host '      Ya existe una configuracion de WhatsApp; se conserva.'
 } else {
-    Write-Host '      Para recibir avisos del avance por WhatsApp:'
-    Write-Host '        1. Guarde en sus contactos el numero  +34 611 08 28 80'
-    Write-Host '        2. Enviele por WhatsApp el mensaje exacto:'
-    Write-Host '              I allow callmebot to send me messages'
-    Write-Host '        3. Recibira una respuesta con su APIKEY.'
-    Write-Host ''
+    Write-Host '      Para recibir avisos, primero active CallMeBot desde su telefono'
+    Write-Host '      (vea .\correr.ps1 -Ayuda). Luego ingrese los datos o pulse Enter'
+    Write-Host '      para omitir.'
     $telefono = Read-Host '      Numero de WhatsApp con codigo de pais (Enter para omitir)'
     if ($telefono) {
         $apikey = Read-Host '      APIKEY recibido de CallMeBot'
@@ -81,11 +69,10 @@ if (Test-Path $ArchivoConfigWhatsapp) {
                 Set-Content -Path $ArchivoConfigWhatsapp -Encoding ASCII
             Write-Host '      Configuracion guardada. Pruebela con:  .\correr.ps1 -ProbarWhatsapp'
         } else {
-            Write-Host '      No se ingreso un APIKEY; los avisos quedan desactivados.'
+            Write-Host '      Sin APIKEY; avisos desactivados.'
         }
     } else {
-        Write-Host "      Avisos omitidos. Puede activarlos despues creando el archivo:"
-        Write-Host "        $ArchivoConfigWhatsapp"
+        Write-Host "      Avisos omitidos. Para activarlos luego, cree $ArchivoConfigWhatsapp."
     }
 }
 
@@ -94,11 +81,10 @@ Write-Host '====================================================================
 Write-Host '  Configuracion completada.'
 Write-Host '=============================================================================='
 Write-Host ''
-Write-Host '  Para empezar, desde la carpeta del repositorio:'
-Write-Host '      .\correr.ps1 -Listar          (ver las simulaciones disponibles)'
-Write-Host '      .\correr.ps1 NOMBRE           (ejecutar una simulacion)'
-Write-Host ''
-Write-Host '  Guia completa:'
-Write-Host '      .\correr.ps1 -Ayuda'
+Write-Host '  El comando se ejecuta desde la carpeta del repositorio y respeta la rama'
+Write-Host '  activa automaticamente:'
+Write-Host '      .\correr.ps1 -Listar       (ver simulaciones de la rama actual)'
+Write-Host '      .\correr.ps1 NOMBRE        (ejecutar una simulacion)'
+Write-Host '      .\correr.ps1 -Ayuda        (guia completa)'
 Write-Host ''
 Write-Host '=============================================================================='
