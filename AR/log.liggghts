@@ -1,4 +1,4 @@
-LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-05-19-03:04:00 by root, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
+LIGGGHTS (Version LIGGGHTS-PUBLIC 3.8.0, compiled 2026-05-30-04:17:57 by root, git commit 3d5c00f20519e6bb6eb6756f51f1ad36564e649d)
 ###################################Header for General commands#######################################################
 
 atom_style	granular		#Simulation of particles
@@ -48,9 +48,9 @@ variable 	poission2	equal	0.29
 ####variable for contact properties####
 
 ####coefficient of restitution####
-variable	CoR11	equal	0.6
-variable	CoR12	equal	0.8
-variable	CoR21	equal	0.8
+variable	CoR11	equal	0.4
+variable	CoR12	equal	0.5
+variable	CoR21	equal	0.5
 variable	CoR22	equal	0.45
 
 ####sliding friction coefficient####
@@ -61,8 +61,8 @@ variable	sf22	equal	0.0
 
 ####rolling friction coefficient####
 variable	rf11	equal	0.75	#Particle-particle rolling friction coefficient
-variable	rf12	equal	0.4
-variable	rf21	equal	0.4
+variable	rf12	equal	0.6
+variable	rf21	equal	0.6
 variable	rf22	equal	0.0
 
 ####variable for particle####
@@ -70,8 +70,8 @@ variable	rf22	equal	0.0
 #Number of particle radius
 variable	nradii	equal	2
 
-variable	radius1	equal	0.0005		#m
-variable	radius2	equal	0.0005		#m
+variable	radius1	equal	0.00005		#m
+variable	radius2	equal	0.00005		#m
 
 variable	frac1	equal	0.42		#42%
 variable	frac2	equal	0.58		#58%
@@ -85,11 +85,11 @@ variable	filltime	equal	5	#seconds	#filltime = discharge time, we fill and disch
 
 variable	dischargetime	equal	30	#seconds
 
-variable	fillmass	equal	0.005  	#kg
+variable	fillmass	equal	0.001  	#kg
 
 variable	fillmassrate	equal	${fillmass}/${filltime}	#kg/s
-variable	fillmassrate	equal	0.005/${filltime}	
-variable	fillmassrate	equal	0.005/5	
+variable	fillmassrate	equal	0.001/${filltime}	
+variable	fillmassrate	equal	0.001/5	
 
 variable	fillsteps	equal	${filltime}/${dt}	#Transform time to iteration steps
 variable	fillsteps	equal	5/${dt}	
@@ -134,7 +134,7 @@ region		reg block -0.6 0.6 -0.4 0.4 -0.15 0.5 units box
 
 create_box	2 reg
 Created orthogonal box = (-0.6 -0.4 -0.15) to (0.6 0.4 0.5)
-  1 by 1 by 1 MPI processor grid
+  3 by 2 by 1 MPI processor grid
 
 neighbor	0.001 bin	#default
 
@@ -144,16 +144,6 @@ neigh_modify	delay 0		#default
 #################################Definition of the contact models####################################################
 
 pair_style gran model hertz tangential history rolling_friction epsd2	#contact model
-WARNING: 
-	The contact model you specified is not located in any whitelist.
-	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
-	In order to optimize this model you have the following options:
-		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
-		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
-		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
-	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
-
- (../contact_models.h:365)
 
 pair_coeff	* *				#default
 
@@ -178,10 +168,10 @@ fix 		m2 all property/global poissonsRatio peratomtype 0.3 0.29
 
 fix 		m3 all property/global coefficientRestitution peratomtypepair ${natoms} ${CoR11} ${CoR12} ${CoR21} ${CoR22}
 fix 		m3 all property/global coefficientRestitution peratomtypepair 2 ${CoR11} ${CoR12} ${CoR21} ${CoR22}
-fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 ${CoR12} ${CoR21} ${CoR22}
-fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.8 ${CoR21} ${CoR22}
-fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.8 0.8 ${CoR22}
-fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.8 0.8 0.45
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.4 ${CoR12} ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.4 0.5 ${CoR21} ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.4 0.5 0.5 ${CoR22}
+fix 		m3 all property/global coefficientRestitution peratomtypepair 2 0.4 0.5 0.5 0.45
 
 fix 		m4 all property/global coefficientFriction peratomtypepair ${natoms} ${sf11} ${sf12} ${sf21} ${sf22}
 fix 		m4 all property/global coefficientFriction peratomtypepair 2 ${sf11} ${sf12} ${sf21} ${sf22}
@@ -193,9 +183,9 @@ fix 		m4 all property/global coefficientFriction peratomtypepair 2 0.65 0.5 0.5 
 fix 		m5 all property/global coefficientRollingFriction peratomtypepair ${natoms} ${rf11} ${rf12} ${rf21} ${rf22}
 fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 ${rf11} ${rf12} ${rf21} ${rf22}
 fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 ${rf12} ${rf21} ${rf22}
-fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.4 ${rf21} ${rf22}
-fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.4 0.4 ${rf22}
-fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.4 0.4 0
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.6 ${rf21} ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.6 0.6 ${rf22}
+fix 		m5 all property/global coefficientRollingFriction peratomtypepair 2 0.75 0.6 0.6 0
 
 
 
@@ -210,26 +200,16 @@ fix		left 		all mesh/surface file left.stl type 2  scale 1.0
 fix		right 		all mesh/surface file right.stl type 2  scale 1.0
 
 fix		walls		all wall/gran model hertz tangential history rolling_friction epsd2 mesh n_meshes 4 meshes case base left right
-WARNING: 
-	The contact model you specified is not located in any whitelist.
-	Because of this the model will be run in an unoptimized version (increasing runtime by up to 20%).
-	In order to optimize this model you have the following options:
-		(i)  Run the genAutoExamplesWhitelist.sh script in your LIGGGHTS(R) source folder to automatically parse the input script
-		(ii) Add the model combination by hand to your style_contact_model_user.whitelist that can be found in your LIGGGHTS(R) source folder
-		(iii) Use the ENABLE_MODEL_* flag when building with cmake.
-	If you perform one of the steps above LIGGGHTS(R) needs to be recompiled to generate the optimized code.
-
- (../contact_models.h:365)
 
 ###################################Generation and Insertion of the particles#########################################
 
-fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant ${density} radius constant ${radius1}
-fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant 280 radius constant ${radius1}
-fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant 280 radius constant 0.0005
+fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant ${density} radius constant ${radius1} volume_limit 1e-18
+fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant 280 radius constant ${radius1} volume_limit 1e-18
+fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant 280 radius constant 5e-05 volume_limit 1e-18
 
-fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant ${density} radius constant ${radius2}
-fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant 280 radius constant ${radius2}
-fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant 280 radius constant 0.0005
+fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant ${density} radius constant ${radius2} volume_limit 1e-18
+fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant 280 radius constant ${radius2} volume_limit 1e-18
+fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant 280 radius constant 5e-05 volume_limit 1e-18
 
 fix 		pdd1 all particledistribution/discrete 32452867 ${nradii} pts1 ${frac1} pts2 ${frac2}
 fix 		pdd1 all particledistribution/discrete 32452867 2 pts1 ${frac1} pts2 ${frac2}
@@ -238,9 +218,9 @@ fix 		pdd1 all particledistribution/discrete 32452867 2 pts1 0.42 pts2 0.58
 
 fix		ins_mesh all mesh/surface/planar file feed.stl type 1 scale 1.0
 
-fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass ${fillmass} massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.05         	insertion_face ins_mesh extrude_length 0.02
-fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 0.005 massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.05         	insertion_face ins_mesh extrude_length 0.02
-fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 0.005 massrate 0.001 overlapcheck yes all_in yes vel constant 0 0 -0.05         	insertion_face ins_mesh extrude_length 0.02
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass ${fillmass} massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.1        	insertion_face ins_mesh extrude_length 0.02
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 0.001 massrate ${fillmassrate} overlapcheck yes all_in yes vel constant 0 0 -0.1        	insertion_face ins_mesh extrude_length 0.02
+fix 		ins all insert/stream seed 15485863 distributiontemplate pdd1         	mass 0.001 massrate 0.0002 overlapcheck yes all_in yes vel constant 0 0 -0.1        	insertion_face ins_mesh extrude_length 0.02
 
 ###################################Dumping of the data for post-processing to visualize############################
 
@@ -265,162 +245,5 @@ dump    dmpmesh all mesh/stl 20000 post/mesh_*.stl
 
 run	 ${fillsteps}
 run	 500000
-Setting up run at Tue May 19 21:27:26 2026
+Setting up run at Wed Jun 10 05:56:47 2026
 
-INFO: Particle insertion ins: 2728.370453 particles every 40000 steps - particle rate 6820.926133, (mass rate 1.000000e-03)
-      34104 particles (mass 4.999908e-03) within 480000 steps
-Memory usage per processor = 2466.42 Mbytes
-    Step    Atoms         KinEng            CPU 
-       0        0              0              0 
-INFO: Particle insertion ins: inserted 2728 particle templates (mass 3.999457e-04) at step 1
- - a total of 2728 particle templates (mass 3.999457e-04) inserted so far.
-INFO: Particle insertion ins: inserted 2728 particle templates (mass 3.999457e-04) at step 40001
- - a total of 5456 particle templates (mass 7.998914e-04) inserted so far.
-INFO: Particle insertion ins: inserted 2728 particle templates (mass 3.999457e-04) at step 80001
- - a total of 8184 particle templates (mass 1.199837e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2729 particle templates (mass 4.000923e-04) at step 120001
- - a total of 10913 particle templates (mass 1.599929e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2729 particle templates (mass 4.000923e-04) at step 160001
- - a total of 13642 particle templates (mass 2.000022e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2729 particle templates (mass 4.000923e-04) at step 200001
- - a total of 16371 particle templates (mass 2.400114e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2728 particle templates (mass 3.999457e-04) at step 240001
- - a total of 19099 particle templates (mass 2.800060e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2729 particle templates (mass 4.000923e-04) at step 280001
- - a total of 21828 particle templates (mass 3.200152e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2728 particle templates (mass 3.999457e-04) at step 320001
- - a total of 24556 particle templates (mass 3.600098e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2728 particle templates (mass 3.999457e-04) at step 360001
- - a total of 27284 particle templates (mass 4.000043e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2729 particle templates (mass 4.000923e-04) at step 400001
- - a total of 30013 particle templates (mass 4.400136e-03) inserted so far.
-INFO: Particle insertion ins: inserted 2729 particle templates (mass 4.000923e-04) at step 440001
- - a total of 32742 particle templates (mass 4.800228e-03) inserted so far.
-INFO: Particle insertion ins: inserted 1362 particle templates (mass 1.996796e-04) at step 480001
- - a total of 34104 particle templates (mass 4.999908e-03) inserted so far.
-  500000    34102  5.6740289e-06      8582.1743 
-Loop time of 8582.17 on 1 procs for 500000 steps with 34102 atoms, finish time Tue May 19 23:52:34 2026
-
-
-Pair  time (%) = 3627.23 (42.2647)
-Neigh time (%) = 3537.72 (41.2218)
-Comm  time (%) = 423.685 (4.9368)
-Outpt time (%) = 2.06501 (0.0240616)
-Other time (%) = 991.473 (11.5527)
-
-Nlocal:    34102 ave 34102 max 34102 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Nghost:    0 ave 0 max 0 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    586594 ave 586594 max 586594 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-
-Total # of neighbors = 586594
-Ave neighs/atom = 17.2012
-Neighbor list builds = 9220
-Dangerous builds = 0
-
-unfix	ins
-
-##################################RUN the simulation settling#############################################################
-
-run	 ${settlesteps}
-run	 100000
-Setting up run at Tue May 19 23:52:34 2026
-
-Memory usage per processor = 2524.78 Mbytes
-    Step    Atoms         KinEng            CPU 
-  500000    34102  5.6740289e-06              0 
-  600000    34102  1.0602831e-14      2232.1422 
-Loop time of 2232.14 on 1 procs for 100000 steps with 34102 atoms, finish time Wed May 20 00:30:54 2026
-
-
-Pair  time (%) = 1827.19 (81.858)
-Neigh time (%) = 92.1179 (4.12689)
-Comm  time (%) = 24.4133 (1.09372)
-Outpt time (%) = 0.646012 (0.0289414)
-Other time (%) = 287.779 (12.8925)
-
-Nlocal:    34102 ave 34102 max 34102 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Nghost:    0 ave 0 max 0 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    607047 ave 607047 max 607047 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-
-Total # of neighbors = 607047
-Ave neighs/atom = 17.8009
-Neighbor list builds = 205
-Dangerous builds = 0
-
-#################################RUN the simulation Open Door#############################################################
-fix	Moveright	all move/mesh mesh right	linear ${openvel} 0. 0.
-fix	Moveright	all move/mesh mesh right	linear 0.1 0. 0.
-
-fix	Moveleft	all move/mesh mesh left		linear -${openvel} 0. 0.
-fix	Moveleft	all move/mesh mesh left		linear -0.1 0. 0.
-
-run	${opensteps}
-run	50000
-Setting up run at Wed May 20 00:30:54 2026
-
-Memory usage per processor = 2530.12 Mbytes
-    Step    Atoms         KinEng            CPU 
-  600000    34102  1.0602831e-14              0 
-  650000    34102  2.6108936e-06      1323.1607 
-Loop time of 1323.16 on 1 procs for 50000 steps with 34102 atoms, finish time Wed May 20 00:54:05 2026
-
-
-Pair  time (%) = 746.035 (56.3828)
-Neigh time (%) = 381.138 (28.8051)
-Comm  time (%) = 42.2803 (3.1954)
-Outpt time (%) = 0.307533 (0.0232423)
-Other time (%) = 153.4 (11.5934)
-
-Nlocal:    34102 ave 34102 max 34102 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Nghost:    0 ave 0 max 0 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    552048 ave 552048 max 552048 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-
-Total # of neighbors = 552048
-Ave neighs/atom = 16.1881
-Neighbor list builds = 965
-Dangerous builds = 0
-
-unfix	Moveright
-
-unfix	Moveleft
-
-#################################RUN the simulation Outflow###############################################################
-
-
-run	 ${dischargesteps}
-run	 400000
-Setting up run at Wed May 20 00:54:05 2026
-
-Memory usage per processor = 2530.88 Mbytes
-    Step    Atoms         KinEng            CPU 
-  650000    34102  2.6108936e-06              0 
- 1050000    34102  7.0800623e-16      8184.7925 
-Loop time of 8184.79 on 1 procs for 400000 steps with 34102 atoms, finish time Wed May 20 03:13:14 2026
-
-
-Pair  time (%) = 6684.47 (81.6694)
-Neigh time (%) = 145.207 (1.7741)
-Comm  time (%) = 23.9269 (0.292334)
-Outpt time (%) = 2.75318 (0.0336378)
-Other time (%) = 1328.44 (16.2305)
-
-Nlocal:    34102 ave 34102 max 34102 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Nghost:    0 ave 0 max 0 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    554267 ave 554267 max 554267 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-
-Total # of neighbors = 554267
-Ave neighs/atom = 16.2532
-Neighbor list builds = 351
-Dangerous builds = 0

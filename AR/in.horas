@@ -84,7 +84,7 @@ variable	filltime	equal	5	#seconds	#filltime = discharge time, we fill and disch
 
 variable	dischargetime	equal	30	#seconds
 
-variable	fillmass	equal	0.005  	#kg
+variable	fillmass	equal	0.001  	#kg
 
 variable	fillmassrate	equal	${fillmass}/${filltime}	#kg/s
 
@@ -164,9 +164,9 @@ fix		walls		all wall/gran model hertz tangential history rolling_friction epsd2 
 
 ###################################Generation and Insertion of the particles#########################################
 
-fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant ${density} radius constant ${radius1}	
+fix		pts1 all particletemplate/sphere 10487 atom_type 1 density constant ${density} radius constant ${radius1} volume_limit 1e-18	
 
-fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant ${density} radius constant ${radius2}	
+fix		pts2 all particletemplate/sphere 11887 atom_type 1 density constant ${density} radius constant ${radius2} volume_limit 1e-18	
 
 fix 		pdd1 all particledistribution/discrete 32452867 ${nradii} pts1 ${frac1} pts2 ${frac2} 
 
